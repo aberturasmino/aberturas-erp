@@ -50,15 +50,41 @@ export const config = {
   ],
 };
 
-export function middleware(request: NextRequest) {
-  const url = new URL(request.url);
+export function middleware(request: any, responseOrEvent?: any) {
+  // Manejar URLs tanto de Web standard (Request) como de Node.js (http.IncomingMessage)
+  let url: URL;
+  try {
+    if (typeof request?.url === 'string' && request.url.startsWith('http')) {
+      url = new URL(request.url);
+    } else {
+      const host =
+        (typeof request?.headers?.get === 'function' ? request.headers.get('host') : null) ||
+        request?.headers?.['x-forwarded-host'] ||
+        request?.headers?.host ||
+        'localhost';
+      const proto =
+        (typeof request?.headers?.get === 'function' ? request.headers.get('x-forwarded-proto') : null) ||
+        request?.headers?.['x-forwarded-proto'] ||
+        'https';
+      url = new URL(request?.url || '/', `${proto}://${host}`);
+    }
+  } catch (_) {
+    url = new URL('/', 'https://localhost');
+  }
+
   const { pathname } = url;
 
-  // 1. Detectar cookies de sesión de Supabase de manera segura
-  const cookieHeader = request.headers.get('cookie') || '';
+  // 1. Detectar cookies de sesión de Supabase (Web Request o Node IncomingMessage)
+  let cookieHeader = '';
+  if (typeof request?.headers?.get === 'function') {
+    cookieHeader = request.headers.get('cookie') || '';
+  } else if (request?.headers?.cookie) {
+    cookieHeader = String(request.headers.cookie);
+  }
+
   let allCookies: { name: string; value: string }[] = [];
 
-  if (request.cookies && typeof request.cookies.getAll === 'function') {
+  if (request?.cookies && typeof request.cookies.getAll === 'function') {
     allCookies = request.cookies.getAll();
   } else {
     allCookies = cookieHeader
@@ -81,28 +107,58 @@ export function middleware(request: NextRequest) {
 
   const isLoginPage = pathname === '/login';
 
+  // Helper para responder según sea Node ServerResponse o Web Response
+  const sendRedirect = (redirectUrl: URL, deleteSessionCookies = false) => {
+    if (responseOrEvent && typeof responseOrEvent.writeHead === 'function') {
+      const headers: Record<string, string | string[]> = {
+        Location: redirectUrl.toString(),
+      };
+      if (deleteSessionCookies) {
+        headers['Set-Cookie'] = [
+          'sb-demo-auth=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax',
+          'sb-session-expires=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax',
+        ];
+      }
+      responseOrEvent.writeHead(307, headers);
+      responseOrEvent.end();
+    }
+    const resp = NextResponse.redirect(redirectUrl);
+    if (deleteSessionCookies) {
+      resp.cookies.delete('sb-demo-auth');
+      resp.cookies.delete('sb-session-expires');
+    }
+    return resp;
+  };
+
+  const sendNext = () => {
+    if (responseOrEvent && typeof responseOrEvent.setHeader === 'function') {
+      responseOrEvent.setHeader('x-middleware-next', '1');
+      if (typeof responseOrEvent.end === 'function') {
+        responseOrEvent.end();
+      }
+    }
+    return NextResponse.next();
+  };
+
   // Caso 1: Usuario no autenticado o sesión expirada intentando acceder a ruta protegida
   if ((!hasAuthCookie || isExpired) && !isLoginPage) {
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = new URL('/login', url);
     if (isExpired && hasAuthCookie) {
       loginUrl.searchParams.set('expired', 'true');
     }
-    const response = NextResponse.redirect(loginUrl);
-
-    if (isExpired) {
-      response.cookies.delete('sb-demo-auth');
-      response.cookies.delete('sb-session-expires');
-    }
-
-    return response;
+    return sendRedirect(loginUrl, isExpired);
   }
 
   // Caso 2: Usuario con sesión activa válida intentando acceder a /login
   if (hasAuthCookie && !isExpired && isLoginPage) {
-    const dashboardUrl = new URL('/', request.url);
-    return NextResponse.redirect(dashboardUrl);
+    const dashboardUrl = new URL('/', url);
+    return sendRedirect(dashboardUrl, false);
   }
 
-  // Permitir la solicitud
-  return NextResponse.next();
+  // Caso 3: Permitir la solicitud
+  return sendNext();
 }
+
+// Exportación default y named para compatibilidad total con Vercel Serverless Functions y Edge Middleware
+export default middleware;
+export { middleware as handler };
