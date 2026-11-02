@@ -1,4 +1,14 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server.js';
+
+export const config = {
+  runtime: 'edge',
+  matcher: [
+    /*
+     * Interceptar rutas de la aplicación excluyendo assets estáticos de Vite
+     */
+    '/((?!assets|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js|woff2?)$).*)',
+  ],
+};
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -38,15 +48,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(dashboardUrl);
   }
 
-  // Siempre retornar NextResponse.next() en Next.js (nunca retornar undefined)
+  // Permitir la solicitud
   return NextResponse.next();
 }
-
-export const config = {
-  matcher: [
-    /*
-     * Interceptar rutas excluyendo archivos estáticos y assets de Next.js
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
-};
