@@ -1,6 +1,7 @@
 import React from 'react';
+import type { Metadata } from 'next';
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'ERP Mayorista - Aberturas Miño',
   description: 'Sistema de gestión de stock e inventario mayorista de aberturas de aluminio y chapa.',
 };
