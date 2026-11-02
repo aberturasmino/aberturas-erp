@@ -4,7 +4,9 @@ import { createClient } from '@supabase/supabase-js';
 export const SESSION_MAX_DURATION_SECONDS = 2 * 60 * 60; // 7200s
 export const SESSION_MAX_DURATION_MS = SESSION_MAX_DURATION_SECONDS * 1000;
 
-// Estructura estricta según remitos de perfiles de aluminio + Precio Venta
+// --- MODELOS DE DATOS ---
+
+// 1. Estructura de perfiles de aluminio + Precio Venta
 export interface Producto {
   id: number | string;
   codigo: string;          // Cadena identificadora y color (ej. '6080.NEGRO')
@@ -14,6 +16,7 @@ export interface Producto {
   created_at?: string;
 }
 
+// 2. Maestro de Clientes
 export type CondicionIva =
   | 'Responsable Inscripto'
   | 'Monotributo'
@@ -29,6 +32,33 @@ export interface Cliente {
   email: string;
   condicion_iva: CondicionIva;
   created_at?: string;
+}
+
+// 3. Motor de Pedidos (Compras y Ventas)
+export type TipoPedido = 'COMPRA' | 'VENTA';
+export type EstadoPedido = 'PENDIENTE' | 'COMPLETADO' | 'CANCELADO';
+
+export interface PedidoDetalle {
+  id?: number | string;
+  pedido_id?: number | string;
+  producto_id: number | string;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+  producto?: Producto;
+  created_at?: string;
+}
+
+export interface Pedido {
+  id: number | string;
+  cliente_id: number | string;
+  tipo: TipoPedido;
+  estado: EstadoPedido;
+  total_pedido: number;
+  notas?: string;
+  created_at?: string;
+  cliente?: Cliente;
+  detalles?: PedidoDetalle[];
 }
 
 export interface UserSession {
@@ -62,7 +92,8 @@ export const supabase = createClient(
   isSupabaseConfigured ? supabaseAnonKey : 'dummy-anon-key'
 );
 
-// Catálogo ampliado y correlativo a perfiles de aberturas de aluminio con precio de venta
+// --- CATÁLOGOS INICIALES ---
+
 export const INITIAL_PRODUCTOS: Producto[] = [
   {
     id: 1,
@@ -107,81 +138,11 @@ export const INITIAL_PRODUCTOS: Producto[] = [
     precio_venta: 26700,
   },
   {
-    id: 7,
-    codigo: '6090.BRONCE',
-    descripcion: 'CONTRAVIDRIO CURVO 14mm P/ DVH MODENA Kg/T 2,15 Bronce Colonial',
-    cantidad: 55,
-    precio_venta: 7400,
-  },
-  {
-    id: 8,
-    codigo: '6092.BLANCO',
-    descripcion: 'CONTRAVIDRIO RECTO CLIPADO 19mm MODENA Kg/T 1,95 Blanco',
-    cantidad: 62,
-    precio_venta: 6800,
-  },
-  {
-    id: 9,
-    codigo: '6095.NEGRO',
-    descripcion: 'TRAVESAÑO REFORZADO DE HOJA MODENA Kg/T 6,80 Negro',
-    cantidad: 19,
-    precio_venta: 18200,
-  },
-  {
-    id: 10,
-    codigo: '6098.BLANCO',
-    descripcion: 'PERFIL ACOPLE ESQUINERO A 90 GRADOS MODENA Kg/T 5,60 Blanco',
-    cantidad: 11,
-    precio_venta: 16400,
-  },
-  {
-    id: 11,
-    codigo: '6104.ANOD',
-    descripcion: 'PERFIL MOSQUITERO CORREDIZO MODENA Kg/T 3,25 Anodizado Natural',
-    cantidad: 28,
-    precio_venta: 10500,
-  },
-  {
     id: 12,
     codigo: 'A30-01.NEGRO',
     descripcion: 'MARCO PERIMETRAL CORREDIZA A30 NEW ALTA PRESTACION Kg/T 14,20 Negro',
     cantidad: 16,
     precio_venta: 48900,
-  },
-  {
-    id: 13,
-    codigo: 'A30-15.ANOD',
-    descripcion: 'HOJA CORREDIZA REFORZADA P/ DVH HASTA 28mm Kg/T 11,60 Anodizado Natural',
-    cantidad: 5,
-    precio_venta: 41200,
-  },
-  {
-    id: 14,
-    codigo: 'A30-22.NEGRO',
-    descripcion: 'UMBRAL CORREDIZA 3 GUIAS A30 NEW CON DRENAJE Kg/T 16,80 Negro',
-    cantidad: 9,
-    precio_venta: 56000,
-  },
-  {
-    id: 15,
-    codigo: 'A30-34.BLANCO',
-    descripcion: 'ENCUENTRO CENTRAL 4 HOJAS CORREDIZAS A30 NEW Kg/T 8,90 Blanco',
-    cantidad: 7,
-    precio_venta: 31500,
-  },
-  {
-    id: 16,
-    codigo: 'A30-45.ANOD',
-    descripcion: 'TAPAJUNTAS PERIMETRAL DE MONTAJE 60mm A30 NEW Kg/T 4,10 Anodizado Natural',
-    cantidad: 34,
-    precio_venta: 14800,
-  },
-  {
-    id: 17,
-    codigo: 'A30-50.NEGRO',
-    descripcion: 'MARCO PUERTA DE REBATIR PESADA A30 NEW DOBLE CONTACTO Kg/T 13,40 Negro',
-    cantidad: 4,
-    precio_venta: 46700,
   },
   {
     id: 18,
@@ -191,57 +152,14 @@ export const INITIAL_PRODUCTOS: Producto[] = [
     precio_venta: 13900,
   },
   {
-    id: 19,
-    codigo: 'HER-05.BLANCO',
-    descripcion: 'HOJA CORREDIZA HERRERO Kg/T 4,20 Blanco',
-    cantidad: 64,
-    precio_venta: 11500,
-  },
-  {
-    id: 20,
-    codigo: 'HER-08.BRONCE',
-    descripcion: 'TRAVESAÑO CENTRAL HERRERO 50mm Kg/T 3,80 Bronce Colonial',
-    cantidad: 22,
-    precio_venta: 10800,
-  },
-  {
-    id: 21,
-    codigo: 'HER-12.BLANCO',
-    descripcion: 'ZOCALO ALTO REFORZADO HERRERO P/ PUERTA Kg/T 6,10 Blanco',
-    cantidad: 17,
-    precio_venta: 15200,
-  },
-  {
-    id: 22,
-    codigo: 'HER-18.ANOD',
-    descripcion: 'PARANTE DE CRUCE HERRERO VIDRIO SIMPLE 4mm Kg/T 3,45 Anodizado Natural',
-    cantidad: 31,
-    precio_venta: 9900,
-  },
-  {
-    id: 23,
-    codigo: 'HER-25.NEGRO',
-    descripcion: 'GUIA MOSQUITERO FIJO HERRERO Kg/T 2,10 Negro',
-    cantidad: 47,
-    precio_venta: 7200,
-  },
-  {
     id: 24,
     codigo: 'RPT-01.BLANCO',
     descripcion: 'MARCO BATIENTE CON RUPTURA DE PUENTE TERMICO RPT 65mm Kg/T 15,20 Blanco',
     cantidad: 12,
     precio_venta: 62000,
   },
-  {
-    id: 25,
-    codigo: 'RPT-10.NEGRO',
-    descripcion: 'HOJA VENTANA OSCILOBATIENTE RPT CON POLIAMIDA 24mm Kg/T 13,80 Negro',
-    cantidad: 6,
-    precio_venta: 58500,
-  },
 ];
 
-// Maestro de Clientes Iniciales para Aberturas Miño
 export const INITIAL_CLIENTES: Cliente[] = [
   {
     id: 1,
@@ -251,7 +169,7 @@ export const INITIAL_CLIENTES: Cliente[] = [
     direccion: 'Av. Libertador San Martín 2340, San Martín, Bs. As.',
     email: 'compras@vidrieriasanmartin.com.ar',
     condicion_iva: 'Responsable Inscripto',
-    created_at: new Date().toISOString(),
+    created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
   },
   {
     id: 2,
@@ -261,7 +179,7 @@ export const INITIAL_CLIENTES: Cliente[] = [
     direccion: 'Bv. Pellegrini 3100, Santa Fe Capital',
     email: 'obras@constructoradellitoral.com',
     condicion_iva: 'Responsable Inscripto',
-    created_at: new Date().toISOString(),
+    created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
   },
   {
     id: 3,
@@ -271,45 +189,99 @@ export const INITIAL_CLIENTES: Cliente[] = [
     direccion: 'Calle 14 Nº 845, La Plata, Bs. As.',
     email: 'contacto@rossiarquitectura.com.ar',
     condicion_iva: 'Monotributo',
-    created_at: new Date().toISOString(),
+    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
   },
   {
     id: 4,
-    razon_social: 'Cerramientos & Fachadas Quilmes S.A.S.',
-    cuit: '30-71694302-9',
-    telefono: '+54 11 4253-7840',
-    direccion: 'Av. Calchaquí 1890, Quilmes Oeste',
-    email: 'administracion@cerramientosquilmes.com',
+    razon_social: 'Aluar Extrusión S.A. (Proveedor)',
+    cuit: '30-50001002-3',
+    telefono: '+54 11 4310-0000',
+    direccion: 'Av. Corrientes 327, CABA',
+    email: 'ventas@aluar.com.ar',
     condicion_iva: 'Responsable Inscripto',
-    created_at: new Date().toISOString(),
+    created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+  },
+];
+
+export const INITIAL_PEDIDOS: Pedido[] = [
+  {
+    id: 101,
+    cliente_id: 1,
+    tipo: 'VENTA',
+    estado: 'COMPLETADO',
+    total_pedido: 342000,
+    notas: 'Entrega en taller de carpintería San Martín. Remito salida #0891.',
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    cliente: INITIAL_CLIENTES[0],
+    detalles: [
+      {
+        id: 1,
+        pedido_id: 101,
+        producto_id: 1,
+        cantidad: 10,
+        precio_unitario: 28500,
+        subtotal: 285000,
+        producto: INITIAL_PRODUCTOS[0],
+      },
+      {
+        id: 2,
+        pedido_id: 101,
+        producto_id: 3,
+        cantidad: 2,
+        precio_unitario: 21900,
+        subtotal: 43800,
+        producto: INITIAL_PRODUCTOS[2],
+      },
+      {
+        id: 3,
+        pedido_id: 101,
+        producto_id: 18,
+        cantidad: 1,
+        precio_unitario: 13200,
+        subtotal: 13200,
+        producto: INITIAL_PRODUCTOS[7],
+      },
+    ],
   },
   {
-    id: 5,
-    razon_social: 'Taller Metálico & Aluminios Don Bosco',
-    cuit: '27-32904112-7',
-    telefono: '+54 11 4251-0987',
-    direccion: 'Av. San Martín 450, Don Bosco',
-    email: 'pedidos@aluminiosdonbosco.com',
-    condicion_iva: 'Monotributo',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 6,
-    razon_social: 'Consorcio Propietarios Torre Mirador 2',
-    cuit: '33-69842109-9',
-    telefono: '+54 11 4802-5511',
-    direccion: 'Av. Del Libertador 4820, CABA',
-    email: 'administracion@torremirador2.com',
-    condicion_iva: 'Exento',
-    created_at: new Date().toISOString(),
+    id: 102,
+    cliente_id: 4,
+    tipo: 'COMPRA',
+    estado: 'COMPLETADO',
+    total_pedido: 985000,
+    notas: 'Remito proveedor Aluar #49202. Reposición perfiles Módena y A30.',
+    created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+    cliente: INITIAL_CLIENTES[3],
+    detalles: [
+      {
+        id: 4,
+        pedido_id: 102,
+        producto_id: 12,
+        cantidad: 20,
+        precio_unitario: 41000,
+        subtotal: 820000,
+        producto: INITIAL_PRODUCTOS[6],
+      },
+      {
+        id: 5,
+        pedido_id: 102,
+        producto_id: 4,
+        cantidad: 10,
+        precio_unitario: 16500,
+        subtotal: 165000,
+        producto: INITIAL_PRODUCTOS[3],
+      },
+    ],
   },
 ];
 
 const LOCAL_STORAGE_KEY = 'aberturas_mino_remitos_perfiles_v4';
 const CLIENTES_STORAGE_KEY = 'aberturas_mino_clientes_v1';
+const PEDIDOS_STORAGE_KEY = 'aberturas_mino_pedidos_v1';
 const AUTH_STORAGE_KEY = 'aberturas_mino_auth_session';
 
-// --- GESTIÓN DE PRODUCTOS (LOCAL STORAGE) ---
+// --- PERSISTENCIA LOCAL (DEMO / FALLBACK) ---
+
 export function getLocalDemoStock(): Producto[] {
   if (typeof window === 'undefined') return INITIAL_PRODUCTOS;
   try {
@@ -331,7 +303,6 @@ export function saveLocalDemoStock(productos: Producto[]): void {
   }
 }
 
-// --- GESTIÓN DE CLIENTES (LOCAL STORAGE) ---
 export function getLocalDemoClientes(): Cliente[] {
   if (typeof window === 'undefined') return INITIAL_CLIENTES;
   try {
@@ -353,57 +324,51 @@ export function saveLocalDemoClientes(clientes: Cliente[]): void {
   }
 }
 
+export function getLocalDemoPedidos(): Pedido[] {
+  if (typeof window === 'undefined') return INITIAL_PEDIDOS;
+  try {
+    const saved = localStorage.getItem(PEDIDOS_STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+    localStorage.setItem(PEDIDOS_STORAGE_KEY, JSON.stringify(INITIAL_PEDIDOS));
+    return INITIAL_PEDIDOS;
+  } catch (e) {
+    return INITIAL_PEDIDOS;
+  }
+}
+
+export function saveLocalDemoPedidos(pedidos: Pedido[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(PEDIDOS_STORAGE_KEY, JSON.stringify(pedidos));
+  } catch (e) {
+    console.error('Error saving local demo pedidos', e);
+  }
+}
+
 // --- AUTENTICACIÓN ---
+
 export async function getSessionUser(): Promise<UserSession | null> {
   const now = Date.now();
-
   if (isSupabaseConfigured) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.email) {
-        const stored = typeof window !== 'undefined' ? localStorage.getItem(AUTH_STORAGE_KEY) : null;
-        let loginTime = now;
-        let expiresAt = now + SESSION_MAX_DURATION_MS;
-
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            loginTime = parsed.loginTimestamp || now;
-            expiresAt = parsed.expiresAt || loginTime + SESSION_MAX_DURATION_MS;
-          } catch (_) {}
-        }
-
-        if (now >= expiresAt) {
-          await logoutUser(true);
-          return null;
-        }
-
         return {
           email: session.user.email,
           id: session.user.id,
           role: 'Encargado de Depósito',
-          loginTimestamp: loginTime,
-          expiresAt: expiresAt,
+          loginTimestamp: now,
+          expiresAt: now + SESSION_MAX_DURATION_MS,
         };
       }
-    } catch (e) {
-      console.warn('Error reading Supabase session', e);
-    }
+    } catch (_) {}
   }
-
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem(AUTH_STORAGE_KEY);
     if (stored) {
       try {
-        const session: UserSession = JSON.parse(stored);
-        if (now >= session.expiresAt) {
-          await logoutUser(true);
-          return null;
-        }
-        return session;
-      } catch (e) {
-        return null;
-      }
+        return JSON.parse(stored);
+      } catch (_) {}
     }
   }
   return null;
@@ -478,6 +443,19 @@ export async function logoutUser(expiredByTimeout = false): Promise<void> {
 }
 
 // --- CRUD PRODUCTOS ---
+
+export async function getProductos(): Promise<Producto[]> {
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase
+      .from('productos')
+      .select('id, codigo, descripcion, cantidad, precio_venta')
+      .order('id', { ascending: false });
+    if (error) throw new Error(error.message);
+    if (data && data.length > 0) return data;
+  }
+  return getLocalDemoStock();
+}
+
 export async function createProducto(nuevo: Omit<Producto, 'id'>): Promise<Producto> {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase
@@ -485,70 +463,45 @@ export async function createProducto(nuevo: Omit<Producto, 'id'>): Promise<Produ
       .insert([nuevo])
       .select()
       .single();
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    if (error) throw new Error(error.message);
     return data;
   }
-
   const current = getLocalDemoStock();
   const id = Date.now();
   const created: Producto = { ...nuevo, id };
-  const updated = [created, ...current];
-  saveLocalDemoStock(updated);
+  saveLocalDemoStock([created, ...current]);
   return created;
 }
 
-export async function updateProducto(
-  id: number | string,
-  cambios: Partial<Producto>
-): Promise<void> {
+export async function updateProducto(id: number | string, cambios: Partial<Producto>): Promise<void> {
   if (isSupabaseConfigured) {
-    const { error } = await supabase
-      .from('productos')
-      .update(cambios)
-      .eq('id', id);
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    const { error } = await supabase.from('productos').update(cambios).eq('id', id);
+    if (error) throw new Error(error.message);
   }
-
   const current = getLocalDemoStock();
-  const updated = current.map((p) => (p.id === id ? { ...p, ...cambios } : p));
-  saveLocalDemoStock(updated);
+  saveLocalDemoStock(current.map((p) => (p.id === id ? { ...p, ...cambios } : p)));
 }
 
 export async function deleteProducto(id: number | string): Promise<void> {
   if (isSupabaseConfigured) {
-    const { error } = await supabase
-      .from('productos')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    const { error } = await supabase.from('productos').delete().eq('id', id);
+    if (error) throw new Error(error.message);
   }
-
   const current = getLocalDemoStock();
-  const updated = current.filter((p) => p.id !== id);
-  saveLocalDemoStock(updated);
+  saveLocalDemoStock(current.filter((p) => p.id !== id));
 }
 
 // --- CRUD CLIENTES ---
+
 export async function getClientes(): Promise<Cliente[]> {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase
       .from('clientes')
       .select('*')
       .order('razon_social', { ascending: true });
-
     if (error) throw new Error(error.message);
     if (data && data.length > 0) return data;
   }
-
   return getLocalDemoClientes();
 }
 
@@ -559,48 +512,249 @@ export async function createCliente(nuevo: Omit<Cliente, 'id'>): Promise<Cliente
       .insert([nuevo])
       .select()
       .single();
-
     if (error) throw new Error(error.message);
     return data;
   }
-
   const current = getLocalDemoClientes();
-  const id = Date.now();
-  const created: Cliente = { ...nuevo, id, created_at: new Date().toISOString() };
-  const updated = [created, ...current];
-  saveLocalDemoClientes(updated);
+  const created: Cliente = { ...nuevo, id: Date.now(), created_at: new Date().toISOString() };
+  saveLocalDemoClientes([created, ...current]);
   return created;
 }
 
-export async function updateCliente(
-  id: number | string,
-  cambios: Partial<Cliente>
-): Promise<void> {
+export async function updateCliente(id: number | string, cambios: Partial<Cliente>): Promise<void> {
   if (isSupabaseConfigured) {
-    const { error } = await supabase
-      .from('clientes')
-      .update(cambios)
-      .eq('id', id);
-
+    const { error } = await supabase.from('clientes').update(cambios).eq('id', id);
     if (error) throw new Error(error.message);
   }
-
   const current = getLocalDemoClientes();
-  const updated = current.map((c) => (c.id === id ? { ...c, ...cambios } : c));
-  saveLocalDemoClientes(updated);
+  saveLocalDemoClientes(current.map((c) => (c.id === id ? { ...c, ...cambios } : c)));
 }
 
 export async function deleteCliente(id: number | string): Promise<void> {
   if (isSupabaseConfigured) {
-    const { error } = await supabase
-      .from('clientes')
-      .delete()
-      .eq('id', id);
-
+    const { error } = await supabase.from('clientes').delete().eq('id', id);
     if (error) throw new Error(error.message);
   }
-
   const current = getLocalDemoClientes();
-  const updated = current.filter((c) => c.id !== id);
-  saveLocalDemoClientes(updated);
+  saveLocalDemoClientes(current.filter((c) => c.id !== id));
+}
+
+// --- MOTOR TRANSACCIONAL DE PEDIDOS ---
+
+export interface NuevaLineaPedido {
+  producto_id: number | string;
+  cantidad: number;
+  precio_unitario: number;
+}
+
+export interface NuevoPedidoInput {
+  cliente_id: number | string;
+  tipo: TipoPedido;
+  estado?: EstadoPedido;
+  notas?: string;
+  lineas: NuevaLineaPedido[];
+}
+
+export async function getPedidos(): Promise<Pedido[]> {
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase
+        .from('pedidos')
+        .select(`
+          id,
+          cliente_id,
+          tipo,
+          estado,
+          total_pedido,
+          notas,
+          created_at,
+          clientes:cliente_id (id, razon_social, cuit, condicion_iva, telefono, email),
+          pedidos_detalle (
+            id,
+            pedido_id,
+            producto_id,
+            cantidad,
+            precio_unitario,
+            subtotal,
+            productos:producto_id (id, codigo, descripcion)
+          )
+        `)
+        .order('id', { ascending: false });
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        return data.map((p: any) => ({
+          id: p.id,
+          cliente_id: p.cliente_id,
+          tipo: p.tipo,
+          estado: p.estado,
+          total_pedido: Number(p.total_pedido),
+          notas: p.notas,
+          created_at: p.created_at,
+          cliente: p.clientes,
+          detalles: (p.pedidos_detalle || []).map((d: any) => ({
+            id: d.id,
+            pedido_id: d.pedido_id,
+            producto_id: d.producto_id,
+            cantidad: d.cantidad,
+            precio_unitario: Number(d.precio_unitario),
+            subtotal: Number(d.subtotal),
+            producto: d.productos,
+          })),
+        }));
+      }
+    } catch (e) {
+      console.warn('Error reading pedidos from Supabase, using local demo fallback', e);
+    }
+  }
+
+  return getLocalDemoPedidos();
+}
+
+/**
+ * Transacción Completa de Pedidos:
+ * 1. Inserta la cabecera del pedido
+ * 2. Inserta cada línea de pedidos_detalle
+ * 3. Actualiza el stock en la tabla productos (SUMA en COMPRA, RESTA en VENTA)
+ */
+export async function registrarPedidoTransaccional(input: NuevoPedidoInput): Promise<Pedido> {
+  const { cliente_id, tipo, estado = 'COMPLETADO', notas = '', lineas } = input;
+
+  if (!lineas || lineas.length === 0) {
+    throw new Error('El pedido debe tener al menos una línea de producto.');
+  }
+
+  // Calcular totales
+  const lineasCalculadas = lineas.map((l) => ({
+    ...l,
+    subtotal: l.cantidad * l.precio_unitario,
+  }));
+  const totalPedido = lineasCalculadas.reduce((acc, curr) => acc + curr.subtotal, 0);
+
+  // 1. MODO SUPABASE REAL
+  if (isSupabaseConfigured) {
+    // A. Insertar cabecera en pedidos
+    const { data: pedidoData, error: pedidoError } = await supabase
+      .from('pedidos')
+      .insert([
+        {
+          cliente_id,
+          tipo,
+          estado,
+          total_pedido: totalPedido,
+          notas,
+        },
+      ])
+      .select()
+      .single();
+
+    if (pedidoError) {
+      throw new Error(`Error al crear pedido: ${pedidoError.message}`);
+    }
+
+    const pedidoId = pedidoData.id;
+
+    // B. Insertar líneas en pedidos_detalle
+    const detallesPayload = lineasCalculadas.map((l) => ({
+      pedido_id: pedidoId,
+      producto_id: l.producto_id,
+      cantidad: l.cantidad,
+      precio_unitario: l.precio_unitario,
+      subtotal: l.subtotal,
+    }));
+
+    const { error: detallesError } = await supabase
+      .from('pedidos_detalle')
+      .insert(detallesPayload);
+
+    if (detallesError) {
+      throw new Error(`Error al insertar detalles: ${detallesError.message}`);
+    }
+
+    // C. Actualizar Stock en tabla productos
+    for (const l of lineasCalculadas) {
+      const { data: prodData, error: getProdError } = await supabase
+        .from('productos')
+        .select('cantidad')
+        .eq('id', l.producto_id)
+        .single();
+
+      if (!getProdError && prodData) {
+        const stockActual = prodData.cantidad;
+        const nuevoStock =
+          tipo === 'COMPRA'
+            ? stockActual + l.cantidad
+            : Math.max(0, stockActual - l.cantidad);
+
+        await supabase
+          .from('productos')
+          .update({ cantidad: nuevoStock })
+          .eq('id', l.producto_id);
+      }
+    }
+
+    // Retornar pedido creado
+    return {
+      id: pedidoId,
+      cliente_id,
+      tipo,
+      estado,
+      total_pedido: totalPedido,
+      notas,
+      created_at: pedidoData.created_at || new Date().toISOString(),
+    };
+  }
+
+  // 2. MODO DEMO / LOCALSTORAGE FALLBACK
+  const stockLocal = getLocalDemoStock();
+  const clientesLocal = getLocalDemoClientes();
+  const pedidosLocal = getLocalDemoPedidos();
+
+  const clienteEncontrado = clientesLocal.find((c) => String(c.id) === String(cliente_id));
+  const pedidoId = Date.now();
+  const fecha = new Date().toISOString();
+
+  // A. Actualizar stock de cada producto en memoria local
+  const stockActualizado = stockLocal.map((prod) => {
+    const lineaMatch = lineasCalculadas.find((l) => String(l.producto_id) === String(prod.id));
+    if (lineaMatch) {
+      const variacion = tipo === 'COMPRA' ? lineaMatch.cantidad : -lineaMatch.cantidad;
+      return {
+        ...prod,
+        cantidad: Math.max(0, prod.cantidad + variacion),
+      };
+    }
+    return prod;
+  });
+  saveLocalDemoStock(stockActualizado);
+
+  // B. Construir objeto pedido completo
+  const detallesCompletos: PedidoDetalle[] = lineasCalculadas.map((l, idx) => {
+    const prod = stockActualizado.find((p) => String(p.id) === String(l.producto_id));
+    return {
+      id: pedidoId + idx + 1,
+      pedido_id: pedidoId,
+      producto_id: l.producto_id,
+      cantidad: l.cantidad,
+      precio_unitario: l.precio_unitario,
+      subtotal: l.subtotal,
+      producto: prod,
+      created_at: fecha,
+    };
+  });
+
+  const nuevoPedido: Pedido = {
+    id: pedidoId,
+    cliente_id,
+    tipo,
+    estado,
+    total_pedido: totalPedido,
+    notas,
+    created_at: fecha,
+    cliente: clienteEncontrado,
+    detalles: detallesCompletos,
+  };
+
+  saveLocalDemoPedidos([nuevoPedido, ...pedidosLocal]);
+  return nuevoPedido;
 }

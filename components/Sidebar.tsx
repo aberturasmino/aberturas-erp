@@ -81,7 +81,7 @@ export default function Sidebar({ currentPath, onNavigate, onLogout }: SidebarPr
       name: 'Pedidos',
       path: '/pedidos',
       icon: ClipboardList,
-      badge: 'Pronto',
+      badge: 'Remitos',
       disabled: false,
     },
   ];
