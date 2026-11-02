@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Minus, ArrowRight, Package, AlertTriangle, CheckCircle2, History } from 'lucide-react';
+import { X, Plus, Minus, ArrowRight, Package, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Producto } from '../lib/supabase';
 
 interface StockModalProps {
@@ -19,7 +19,7 @@ export default function StockModal({
 }: StockModalProps) {
   const [operacion, setOperacion] = useState<'sumar' | 'restar'>('sumar');
   const [cantidad, setCantidad] = useState<number>(1);
-  const [motivo, setMotivo] = useState<string>('Ingreso de fábrica');
+  const [motivo, setMotivo] = useState<string>('Remito de proveedor');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -27,7 +27,7 @@ export default function StockModal({
     if (isOpen) {
       setOperacion('sumar');
       setCantidad(1);
-      setMotivo('Ingreso de fábrica');
+      setMotivo('Remito de proveedor');
       setErrorMessage(null);
       setIsSubmitting(false);
     }
@@ -35,7 +35,7 @@ export default function StockModal({
 
   if (!isOpen || !producto) return null;
 
-  const stockActual = producto.stock_actual;
+  const stockActual = producto.cantidad;
   const nuevoStockCalculado =
     operacion === 'sumar' ? stockActual + cantidad : stockActual - cantidad;
 
@@ -86,7 +86,7 @@ export default function StockModal({
       }}
     >
       <div className="relative w-full max-w-lg overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl text-slate-100">
-        {/* Encabezado Industrial con Acento Azul Acero */}
+        {/* Encabezado Industrial */}
         <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/80 px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30">
@@ -94,9 +94,9 @@ export default function StockModal({
             </div>
             <div>
               <h2 id="modal-title" className="text-base font-bold tracking-tight text-white">
-                Ajuste de Inventario
+                Ajuste de Stock
               </h2>
-              <span className="font-mono text-xs text-blue-400">{producto.codigo_sku}</span>
+              <span className="font-mono text-xs font-semibold text-blue-400">{producto.codigo}</span>
             </div>
           </div>
           <button
@@ -111,18 +111,14 @@ export default function StockModal({
 
         {/* Cuerpo del Modal */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Ficha rápida del producto */}
-          <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3.5">
-            <p className="text-sm font-medium text-slate-200 line-clamp-2">
-              {producto.nombre}
+          {/* Ficha técnica del perfil (código y descripción estricta) */}
+          <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3.5 space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+              Descripción del Perfil
+            </span>
+            <p className="text-sm font-semibold text-slate-200 leading-snug">
+              {producto.descripcion}
             </p>
-            <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
-              <span className="text-slate-300 font-semibold">{producto.linea}</span>
-              <span aria-hidden="true">·</span>
-              <span>{producto.tipo}</span>
-              <span aria-hidden="true">·</span>
-              <span className="font-mono">Precio May.: ${producto.precio_mayorista.toLocaleString('es-AR')}</span>
-            </div>
           </div>
 
           {/* Selector de Operación (Sumar Entrada vs Restar Salida) */}
@@ -135,7 +131,7 @@ export default function StockModal({
                 type="button"
                 onClick={() => {
                   setOperacion('sumar');
-                  setMotivo('Ingreso de fábrica');
+                  setMotivo('Remito de proveedor');
                   setErrorMessage(null);
                 }}
                 className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-md text-xs font-semibold transition-all ${
@@ -151,7 +147,7 @@ export default function StockModal({
                 type="button"
                 onClick={() => {
                   setOperacion('restar');
-                  setMotivo('Venta mayorista');
+                  setMotivo('Consumo de taller / Despacho');
                   if (cantidad > stockActual) {
                     setErrorMessage('Atención: La salida supera la cantidad disponible.');
                   }
@@ -175,7 +171,7 @@ export default function StockModal({
                 Cantidad a {operacion === 'sumar' ? 'Ingresar' : 'Retirar'}
               </label>
               <span className="text-xs text-slate-400 font-mono">
-                Actual: <strong className="text-slate-200">{stockActual} u.</strong>
+                Stock actual: <strong className="text-slate-200">{stockActual} u.</strong>
               </span>
             </div>
 
@@ -209,7 +205,7 @@ export default function StockModal({
               </button>
             </div>
 
-            {/* Accesos rápidos de bulto mayorista */}
+            {/* Accesos rápidos de bulto de perfiles */}
             <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
               <span className="text-[11px] text-slate-500 font-medium mr-1">Rápidos:</span>
               {[1, 5, 10, 20, 50].map((preset) => (
@@ -229,26 +225,26 @@ export default function StockModal({
             </div>
           </div>
 
-          {/* Motivo del Ajuste */}
+          {/* Motivo o Número de Remito */}
           <div>
             <label htmlFor="input-motivo" className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-              Motivo o Referencia (Opcional)
+              Nº de Remito o Motivo (Opcional)
             </label>
             <input
               id="input-motivo"
               type="text"
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Ej. Remito #1428, Lote de armado, Rotura de vidrio..."
+              placeholder="Ej. Remito #4892 Aluar, Extrusión Lote 3, Armado de obra..."
               className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
-          {/* Panel de Cálculo de Balance en Vivo */}
+          {/* Panel de Cálculo de Balance */}
           <div className="rounded-lg border border-slate-800 bg-slate-950 p-4">
             <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-              <span>Balance de Depósito</span>
-              <span className="font-mono">{operacion === 'sumar' ? 'Entrada' : 'Salida'} de mercadería</span>
+              <span>Balance de Perfiles</span>
+              <span className="font-mono">{operacion === 'sumar' ? 'Entrada' : 'Salida'}</span>
             </div>
             <div className="flex items-center justify-between font-mono">
               <div className="text-center">
@@ -282,7 +278,6 @@ export default function StockModal({
             </div>
           </div>
 
-          {/* Mensaje de Error / Advertencia */}
           {errorMessage && (
             <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />

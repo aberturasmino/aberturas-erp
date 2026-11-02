@@ -3,21 +3,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Package,
-  Layers,
   Search,
   RefreshCw,
   AlertTriangle,
-  ArrowUpDown,
-  SlidersHorizontal,
   CheckCircle2,
-  Database,
-  ExternalLink,
-  ChevronRight,
-  TrendingUp,
   Boxes,
-  FileCode,
-  ShieldCheck,
-  X
+  X,
+  LogOut,
+  User,
+  Plus,
+  Trash2,
+  Layers
 } from 'lucide-react';
 import {
   supabase,
@@ -25,71 +21,97 @@ import {
   isSupabaseConfigured,
   getLocalDemoStock,
   saveLocalDemoStock,
-  INITIAL_PRODUCTOS
+  INITIAL_PRODUCTOS,
+  getSessionUser,
+  logoutUser,
+  UserSession,
+  createProducto,
+  deleteProducto
 } from '../lib/supabase';
 import StockModal from '../components/StockModal';
+import AddProductModal from '../components/AddProductModal';
+import DeleteProductModal from '../components/DeleteProductModal';
 
-export default function ERPPage() {
+interface ERPPageProps {
+  onLogout?: () => void;
+  currentUser?: UserSession | null;
+}
+
+export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isUsingDemo, setIsUsingDemo] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [user, setUser] = useState<UserSession | null>(currentUser || null);
 
-  // Search and filter states
+  // Búsqueda y Filtro
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedLinea, setSelectedLinea] = useState<string>('TODAS');
-  const [selectedTipo, setSelectedTipo] = useState<string>('TODOS');
   const [soloStockBajo, setSoloStockBajo] = useState<boolean>(false);
 
-  // Modal and toast states
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
-  const [selectedProducto, setSelectedProducto] = useState<Producto | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [showSqlModal, setShowSqlModal] = useState<boolean>(false);
+  // Modales
+  const [stockModalOpen, setStockModalOpen] = useState<boolean>(false);
+  const [addModalOpen, setAddModalOpen] = useState<boolean>(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
 
-  // Load products on mount
+  const [selectedProducto, setSelectedProducto] = useState<Producto | null>(null);
+  const [productoToDelete, setProductoToDelete] = useState<Producto | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Paginación para escalabilidad
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const itemsPerPage = 12;
+
+  // Carga inicial
   useEffect(() => {
     cargarProductos();
+    cargarSesion();
   }, []);
+
+  const cargarSesion = async () => {
+    if (!currentUser) {
+      const activeUser = await getSessionUser();
+      setUser(activeUser);
+    }
+  };
+
+  const handleLogoutClick = async () => {
+    await logoutUser();
+    setUser(null);
+    if (onLogout) {
+      onLogout();
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+  };
 
   const cargarProductos = async () => {
     setIsLoading(true);
-    setErrorMessage(null);
 
-    // If Supabase is configured with real credentials, query Supabase
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
           .from('productos')
-          .select('*')
-          .order('id', { ascending: true });
+          .select('id, codigo, descripcion, cantidad')
+          .order('id', { ascending: false });
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
         if (data && data.length > 0) {
           setProductos(data);
           setIsUsingDemo(false);
         } else {
-          // Table exists but is empty -> fallback to initial seed or show empty
           setProductos(INITIAL_PRODUCTOS);
           setIsUsingDemo(false);
         }
       } catch (err: any) {
-        console.warn('Error conectando a Supabase, activando modo demostración interactivo:', err);
+        console.warn('Conectando a almacenamiento local:', err);
         const demoData = getLocalDemoStock();
         setProductos(demoData);
         setIsUsingDemo(true);
-        setErrorMessage(
-          'No se pudo conectar a Supabase o la tabla no está creada. Operando en modo demostración local interactivo.'
-        );
       } finally {
         setIsLoading(false);
       }
     } else {
-      // Supabase credentials not provided -> load interactive local demo storage
       const demoData = getLocalDemoStock();
       setProductos(demoData);
       setIsUsingDemo(true);
@@ -101,36 +123,33 @@ export default function ERPPage() {
     setIsRefreshing(true);
     await cargarProductos();
     setIsRefreshing(false);
-    showToast('Inventario sincronizado con éxito');
+    showToast('Inventario sincronizado correctamente');
   };
 
+  // Actualización de stock (cantidad)
   const handleOpenStockModal = (producto: Producto) => {
     setSelectedProducto(producto);
-    setModalOpen(true);
+    setStockModalOpen(true);
   };
 
   const handleActualizarStock = async (
     productoId: number | string,
     nuevoStock: number,
-    cantidad: number,
+    cantidadAjustada: number,
     operacion: 'sumar' | 'restar'
   ) => {
     if (isSupabaseConfigured && !isUsingDemo) {
-      // Real Supabase update query
       const { error } = await supabase
         .from('productos')
-        .update({ stock_actual: nuevoStock })
+        .update({ cantidad: nuevoStock })
         .eq('id', productoId);
 
-      if (error) {
-        throw new Error(error.message);
-      }
+      if (error) throw new Error(error.message);
     }
 
-    // Update local state reactively
     setProductos((prev) => {
       const updated = prev.map((p) =>
-        p.id === productoId ? { ...p, stock_actual: nuevoStock } : p
+        p.id === productoId ? { ...p, cantidad: nuevoStock } : p
       );
       if (isUsingDemo) {
         saveLocalDemoStock(updated);
@@ -139,7 +158,26 @@ export default function ERPPage() {
     });
 
     const accionTexto = operacion === 'sumar' ? 'ingresaron' : 'retiraron';
-    showToast(`Se ${accionTexto} ${cantidad} u. correctamente. Nuevo stock: ${nuevoStock}`);
+    showToast(`Se ${accionTexto} ${cantidadAjustada} u. (Cantidad actual: ${nuevoStock})`);
+  };
+
+  // Creación de perfil nuevo (codigo, descripcion, cantidad)
+  const handleCrearProducto = async (nuevo: Omit<Producto, 'id'>) => {
+    const creado = await createProducto(nuevo);
+    setProductos((prev) => [creado, ...prev]);
+    showToast(`Perfil ${creado.codigo} agregado al inventario`);
+  };
+
+  // Eliminación de perfil
+  const handleConfirmarEliminacion = async (productoId: number | string) => {
+    await deleteProducto(productoId);
+    setProductos((prev) => prev.filter((p) => p.id !== productoId));
+    showToast('Perfil eliminado correctamente');
+  };
+
+  const handleOpenDeleteSingle = (producto: Producto) => {
+    setProductoToDelete(producto);
+    setDeleteModalOpen(true);
   };
 
   const showToast = (msg: string) => {
@@ -149,46 +187,40 @@ export default function ERPPage() {
     }, 4000);
   };
 
-  // Distinct lists for filters
-  const lineasDisponibles = useMemo(() => {
-    const list = Array.from(new Set(productos.map((p) => p.linea)));
-    return ['TODAS', ...list];
-  }, [productos]);
-
-  const tiposDisponibles = useMemo(() => {
-    const list = Array.from(new Set(productos.map((p) => p.tipo)));
-    return ['TODOS', ...list];
-  }, [productos]);
-
-  // Filtered products list
+  // Filtrado reactivo por CÓDIGO o DESCRIPCIÓN
   const filteredProductos = useMemo(() => {
     return productos.filter((p) => {
       const matchesSearch =
-        p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.codigo_sku.toLowerCase().includes(searchTerm.toLowerCase());
+        p.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesLinea = selectedLinea === 'TODAS' || p.linea === selectedLinea;
-      const matchesTipo = selectedTipo === 'TODOS' || p.tipo === selectedTipo;
-      const matchesBajoStock = !soloStockBajo || p.stock_actual <= 5;
+      const matchesBajoStock = !soloStockBajo || p.cantidad <= 5;
 
-      return matchesSearch && matchesLinea && matchesTipo && matchesBajoStock;
+      return matchesSearch && matchesBajoStock;
     });
-  }, [productos, searchTerm, selectedLinea, selectedTipo, soloStockBajo]);
+  }, [productos, searchTerm, soloStockBajo]);
 
-  // KPI Calculations
-  const totalArticulos = productos.length;
-  const totalUnidades = productos.reduce((acc, curr) => acc + curr.stock_actual, 0);
-  const totalStockBajo = productos.filter((p) => p.stock_actual <= 5).length;
-  const valorizacionTotal = productos.reduce(
-    (acc, curr) => acc + curr.stock_actual * curr.precio_mayorista,
-    0
-  );
+  // Paginación
+  const totalPages = Math.max(1, Math.ceil(filteredProductos.length / itemsPerPage));
+  const paginatedProductos = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProductos.slice(start, start + itemsPerPage);
+  }, [filteredProductos, currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, soloStockBajo]);
+
+  // Métricas de depósito
+  const totalCodigos = productos.length;
+  const totalUnidades = productos.reduce((acc, curr) => acc + curr.cantidad, 0);
+  const totalStockBajo = productos.filter((p) => p.cantidad <= 5).length;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
-      {/* Barra de Notificación Toast */}
+      {/* Notificación Toast */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg border border-blue-500/40 bg-slate-900/95 px-4 py-3 text-xs font-semibold text-blue-300 shadow-2xl backdrop-blur-md transition-all animate-in fade-in slide-in-from-bottom-2">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg border border-blue-500/40 bg-slate-900/95 px-4 py-3 text-xs font-semibold text-blue-300 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
           <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0" />
           <span>{toastMessage}</span>
           <button
@@ -200,123 +232,82 @@ export default function ERPPage() {
         </div>
       )}
 
-      {/* Top Header Contract Industrial */}
+      {/* Cabecera Limpia */}
       <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-6">
-          {/* Marca / Identidad Industrial */}
-          <div className="flex items-center gap-3.5 shrink-0">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-lg tracking-wider shadow-lg shadow-blue-900/30 border border-blue-400/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-base tracking-wider shadow-md shadow-blue-900/30 border border-blue-400/30">
               AM
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-widest text-blue-400 font-bold">
-                  Plataforma Industrial
-                </span>
-                <span className="text-slate-600">·</span>
-                <span className="text-xs text-slate-400">Depósito Central</span>
-              </div>
-              <h1 className="text-lg sm:text-xl font-extrabold tracking-tight text-white whitespace-nowrap">
-                ERP Mayorista - Aberturas Miño
-              </h1>
-            </div>
+            <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white whitespace-nowrap">
+              ERP Mayorista - Aberturas Miño
+            </h1>
           </div>
 
-          {/* Acciones de Cabecera */}
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              onClick={() => setShowSqlModal(true)}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 text-xs font-medium hover:bg-slate-700 hover:text-white transition-colors"
-              title="Ver esquema SQL para Supabase"
-            >
-              <FileCode className="h-3.5 w-3.5 text-blue-400" />
-              <span>Esquema SQL</span>
-            </button>
-
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={handleRefresh}
               disabled={isRefreshing || isLoading}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-white transition-colors"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-blue-400' : 'text-slate-400'}`} />
               <span className="hidden sm:inline">Sincronizar</span>
             </button>
+
+            {user ? (
+              <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
+                <span className="hidden md:block text-xs font-medium text-slate-300 truncate max-w-[150px]">
+                  {user.email}
+                </span>
+                <button
+                  onClick={handleLogoutClick}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors"
+                  title="Cerrar sesión"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Salir</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  if (onLogout) onLogout();
+                  else if (typeof window !== 'undefined') window.location.href = '/login';
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-500 transition-colors"
+              >
+                <User className="h-3.5 w-3.5" />
+                <span>Ingresar</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Contenedor Principal */}
+      {/* Contenido Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Banner de Estado de Conexión Supabase */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-800 bg-slate-900/50">
-          <div className="flex items-center gap-3">
-            <div
-              className={`flex h-8 w-8 items-center justify-center rounded-lg border ${
-                isSupabaseConfigured && !isUsingDemo
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                  : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
-              }`}
-            >
-              <Database className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-200">
-                  {isSupabaseConfigured && !isUsingDemo
-                    ? 'Conectado a Base de Datos Supabase (PostgreSQL)'
-                    : 'Modo Demostración Interactivo (Simulación Local Activa)'}
-                </span>
-                <span
-                  className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                    isSupabaseConfigured && !isUsingDemo
-                      ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                      : 'bg-blue-950 text-blue-300 border border-blue-800'
-                  }`}
-                >
-                  {isSupabaseConfigured && !isUsingDemo ? 'LIVE_DB' : 'DEMO_CACHE'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
-                {isSupabaseConfigured && !isUsingDemo
-                  ? 'Sincronización bidireccional directa con la tabla "productos".'
-                  : 'Las variables NEXT_PUBLIC_SUPABASE_* no están configuradas; puedes probar altas y bajas en memoria sin trabas.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowSqlModal(true)}
-              className="text-xs font-semibold text-blue-400 hover:text-blue-300 underline underline-offset-2 flex items-center gap-1"
-            >
-              <span>Ver tabla productos SQL</span>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Tira de Métricas KPI de Depósito */}
-        <section aria-label="Métricas de Inventario" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Métricas de Remitos de Perfiles */}
+        <section aria-label="Resumen de Inventario" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
             <div className="flex items-center justify-between text-slate-400 text-xs mb-1.5">
-              <span className="font-semibold uppercase tracking-wider">Catálogo Activo</span>
+              <span className="font-semibold uppercase tracking-wider">Perfiles en Catálogo</span>
               <Package className="h-4 w-4 text-blue-400" />
             </div>
             <div className="text-2xl font-bold font-mono text-white tabular-nums">
-              {totalArticulos}
+              {totalCodigos}
             </div>
-            <span className="text-[11px] text-slate-500">Modelos de aberturas</span>
+            <span className="text-[11px] text-slate-500">Códigos registrados</span>
           </div>
 
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
             <div className="flex items-center justify-between text-slate-400 text-xs mb-1.5">
-              <span className="font-semibold uppercase tracking-wider">Unidades Físicas</span>
+              <span className="font-semibold uppercase tracking-wider">Unidades Totales</span>
               <Boxes className="h-4 w-4 text-blue-400" />
             </div>
             <div className="text-2xl font-bold font-mono text-white tabular-nums">
-              {totalUnidades} <span className="text-sm font-normal text-slate-400">u.</span>
+              {totalUnidades} <span className="text-sm font-normal text-slate-400">productos</span>
             </div>
-            <span className="text-[11px] text-slate-500">Disponibles en nave central</span>
+            <span className="text-[11px] text-slate-500">En depósito central</span>
           </div>
 
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
@@ -327,30 +318,18 @@ export default function ERPPage() {
             <div className={`text-2xl font-bold font-mono tabular-nums ${totalStockBajo > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
               {totalStockBajo}
             </div>
-            <span className="text-[11px] text-slate-500">Líneas con 5 o menos unidades</span>
-          </div>
-
-          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-            <div className="flex items-center justify-between text-slate-400 text-xs mb-1.5">
-              <span className="font-semibold uppercase tracking-wider">Valuación Mayorista</span>
-              <TrendingUp className="h-4 w-4 text-blue-400" />
-            </div>
-            <div className="text-2xl font-bold font-mono text-white tabular-nums truncate">
-              ${valorizacionTotal.toLocaleString('es-AR')}
-            </div>
-            <span className="text-[11px] text-slate-500">Total calculado según lista</span>
+            <span className="text-[11px] text-slate-500">Perfiles con 5 o menos unidades</span>
           </div>
         </section>
 
-        {/* Barra de Búsqueda y Filtros de Depósito */}
-        <section aria-label="Herramientas de Búsqueda" className="rounded-xl border border-slate-800 bg-slate-900 p-4 space-y-3">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            {/* Buscador en Vivo */}
+        {/* Búsqueda y Filtro Rápido */}
+        <section aria-label="Búsqueda" className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
               <input
                 type="text"
-                placeholder="Buscar por código SKU, modelo de abertura, medidas o vidrio..."
+                placeholder="Buscar por código (ej. 6080.NEGRO) o descripción técnica..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
@@ -365,138 +344,107 @@ export default function ERPPage() {
               )}
             </div>
 
-            {/* Selector de Filtros */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Filtro por Línea */}
-              <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5">
-                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Línea:</span>
-                <select
-                  value={selectedLinea}
-                  onChange={(e) => setSelectedLinea(e.target.value)}
-                  className="bg-transparent text-xs text-slate-200 focus:outline-none font-medium cursor-pointer"
-                >
-                  {lineasDisponibles.map((l) => (
-                    <option key={l} value={l} className="bg-slate-900 text-slate-200">
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Filtro por Tipo */}
-              <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5">
-                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Tipo:</span>
-                <select
-                  value={selectedTipo}
-                  onChange={(e) => setSelectedTipo(e.target.value)}
-                  className="bg-transparent text-xs text-slate-200 focus:outline-none font-medium cursor-pointer"
-                >
-                  {tiposDisponibles.map((t) => (
-                    <option key={t} value={t} className="bg-slate-900 text-slate-200">
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Botón de Stock Crítico */}
-              <button
-                type="button"
-                onClick={() => setSoloStockBajo(!soloStockBajo)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 ${
-                  soloStockBajo
-                    ? 'border-amber-500 bg-amber-500/20 text-amber-300'
-                    : 'border-slate-700 bg-slate-950 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-                <span>Solo Crítico (≤ 5)</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setSoloStockBajo(!soloStockBajo)}
+              className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                soloStockBajo
+                  ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                  : 'border-slate-700 bg-slate-950 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+              <span>Solo Crítico (≤ 5 u.)</span>
+            </button>
           </div>
         </section>
 
-        {/* Tabla Industrial de Productos */}
-        <section aria-label="Inventario de Productos" className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden shadow-xl">
+        {/* 2 BOTONES ARRIBA DE LA TABLA (Agregar y Eliminar Producto) */}
+        <section aria-label="Acciones de Perfiles" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setAddModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-900/30 transition-all active:scale-[0.98]"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Agregar Producto</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setProductoToDelete(null);
+                setDeleteModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-700 bg-slate-900 hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-400 text-slate-300 text-xs font-bold transition-all active:scale-[0.98]"
+            >
+              <Trash2 className="h-4 w-4 text-red-400" />
+              <span>Eliminar Producto</span>
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-400 font-mono">
+            Mostrando <strong className="text-slate-200">{filteredProductos.length}</strong> de{' '}
+            <strong className="text-slate-200">{productos.length}</strong> perfiles
+          </div>
+        </section>
+
+        {/* TABLA DE INVENTARIO: 3 COLUMNAS EXACTAS (CÓDIGO, DESCRIPCIÓN, CANTIDAD) */}
+        <section aria-label="Tabla de Perfiles de Aluminio" className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden shadow-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider">
-                  <th scope="col" className="py-3.5 px-4 font-mono">CÓDIGO SKU</th>
-                  <th scope="col" className="py-3.5 px-4">PRODUCTO / ESPECIFICACIÓN</th>
-                  <th scope="col" className="py-3.5 px-4">LÍNEA</th>
-                  <th scope="col" className="py-3.5 px-4">TIPO</th>
-                  <th scope="col" className="py-3.5 px-4 text-right font-mono">PRECIO MAYORISTA</th>
-                  <th scope="col" className="py-3.5 px-4 text-center font-mono">STOCK ACTUAL</th>
-                  <th scope="col" className="py-3.5 px-4 text-right">GESTIÓN</th>
+                <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider font-mono">
+                  <th scope="col" className="py-3.5 px-4 w-44">CÓDIGO</th>
+                  <th scope="col" className="py-3.5 px-4">DESCRIPCIÓN</th>
+                  <th scope="col" className="py-3.5 px-4 text-center w-36">CANTIDAD</th>
+                  <th scope="col" className="py-3.5 px-4 text-right w-48">GESTIÓN</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
                 {isLoading ? (
-                  // Estado de Carga (Skeletons)
                   Array.from({ length: 5 }).map((_, idx) => (
                     <tr key={idx} className="animate-pulse">
                       <td className="py-4 px-4"><div className="h-4 w-28 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4"><div className="h-4 w-64 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4"><div className="h-4 w-20 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4"><div className="h-4 w-16 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4 text-right"><div className="h-4 w-20 bg-slate-800 rounded ml-auto"></div></td>
+                      <td className="py-4 px-4"><div className="h-4 w-96 bg-slate-800 rounded"></div></td>
                       <td className="py-4 px-4 text-center"><div className="h-4 w-12 bg-slate-800 rounded mx-auto"></div></td>
                       <td className="py-4 px-4 text-right"><div className="h-7 w-28 bg-slate-800 rounded ml-auto"></div></td>
                     </tr>
                   ))
-                ) : filteredProductos.length === 0 ? (
-                  // Estado Vacío
+                ) : paginatedProductos.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <td colSpan={4} className="py-12 text-center text-slate-400">
                       <Package className="h-8 w-8 text-slate-600 mx-auto mb-2" />
                       <p className="text-sm font-semibold text-slate-300">
-                        No se encontraron aberturas con los filtros seleccionados
+                        No se encontraron perfiles con el criterio de búsqueda
                       </p>
                       <p className="text-xs text-slate-500 mt-1">
-                        Prueba ajustando la búsqueda o quitando los filtros de línea y tipo.
+                        Verifica el código o agrega uno nuevo con el botón superior.
                       </p>
                     </td>
                   </tr>
                 ) : (
-                  // Filas de Productos
-                  filteredProductos.map((prod) => {
-                    const esCritico = prod.stock_actual <= 5;
+                  paginatedProductos.map((prod) => {
+                    const esCritico = prod.cantidad <= 5;
                     return (
                       <tr
                         key={prod.id}
                         className="hover:bg-slate-800/50 transition-colors group"
                       >
-                        {/* SKU */}
-                        <td className="py-3.5 px-4 font-mono font-semibold text-blue-400 whitespace-nowrap">
-                          {prod.codigo_sku}
+                        {/* 1. CÓDIGO */}
+                        <td className="py-3.5 px-4 font-mono font-bold text-blue-400 whitespace-nowrap">
+                          {prod.codigo}
                         </td>
 
-                        {/* Nombre y Medidas */}
-                        <td className="py-3.5 px-4 font-medium text-slate-200 min-w-[240px]">
-                          {prod.nombre}
+                        {/* 2. DESCRIPCIÓN */}
+                        <td className="py-3.5 px-4 font-medium text-slate-200">
+                          {prod.descripcion}
                         </td>
 
-                        {/* Línea */}
-                        <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">
-                          <span className="inline-flex items-center text-xs text-slate-300 font-medium">
-                            {prod.linea}
-                          </span>
-                        </td>
-
-                        {/* Tipo */}
-                        <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">
-                          {prod.tipo}
-                        </td>
-
-                        {/* Precio Mayorista */}
-                        <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-200 tabular-nums whitespace-nowrap">
-                          ${prod.precio_mayorista.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                        </td>
-
-                        {/* Stock Actual con Alerta si es crítico */}
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1.5 font-mono tabular-nums">
+                        {/* 3. CANTIDAD */}
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap font-mono tabular-nums">
+                          <div className="inline-flex items-center gap-1.5">
                             <span
                               className={`text-sm font-bold px-2.5 py-0.5 rounded ${
                                 esCritico
@@ -504,26 +452,38 @@ export default function ERPPage() {
                                   : 'text-slate-100 bg-slate-950 border border-slate-800'
                               }`}
                             >
-                              {prod.stock_actual} u.
+                              {prod.cantidad} u.
                             </span>
                             {esCritico && (
-                              <span title="Stock bajo (reponer)">
+                              <span title="Stock bajo (reponer remito)">
                                 <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
                               </span>
                             )}
                           </div>
                         </td>
 
-                        {/* Botón de Acción Principal */}
+                        {/* GESTIÓN (Actualizar Stock y Eliminar) */}
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenStockModal(prod)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-sm shadow-blue-900/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                          >
-                            <Boxes className="h-3.5 w-3.5" />
-                            <span>Actualizar Stock</span>
-                          </button>
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenStockModal(prod)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-sm shadow-blue-900/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                              <Boxes className="h-3.5 w-3.5" />
+                              <span>Actualizar Stock</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDeleteSingle(prod)}
+                              className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              title="Eliminar este perfil"
+                              aria-label={`Eliminar ${prod.codigo}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -533,105 +493,71 @@ export default function ERPPage() {
             </table>
           </div>
 
-          {/* Pie de Tabla con Resumen */}
-          <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-800 bg-slate-950 px-4 py-3 text-xs text-slate-400 gap-2">
+          {/* Paginación */}
+          <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-800 bg-slate-950 px-4 py-3 text-xs text-slate-400 gap-3">
             <div>
-              Mostrando <strong className="text-slate-200">{filteredProductos.length}</strong> de{' '}
-              <strong className="text-slate-200">{productos.length}</strong> productos en inventario
+              Página <strong className="text-slate-200">{currentPage}</strong> de{' '}
+              <strong className="text-slate-200">{totalPages}</strong>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-                <span>Stock normal</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                <span>Stock crítico (≤ 5 u.)</span>
-              </span>
-            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1.5 font-mono">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-2.5 py-1 rounded border border-slate-800 bg-slate-900 text-slate-300 disabled:opacity-40 hover:bg-slate-800"
+                >
+                  Anterior
+                </button>
+                <span className="px-2 text-slate-500">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-2.5 py-1 rounded border border-slate-800 bg-slate-900 text-slate-300 disabled:opacity-40 hover:bg-slate-800"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
           </div>
         </section>
       </main>
 
-      {/* Footer Industrial */}
+      {/* Pie de página */}
       <footer className="border-t border-slate-800/80 bg-slate-950 py-4 text-center text-xs text-slate-500">
-        <p>Aberturas Miño · Sistema de Gestión de Inventario Mayorista · Carpintería de Aluminio & Chapa</p>
+        <p>Aberturas Miño · Control de Perfiles de Aluminio y Remitos de Proveedores</p>
       </footer>
 
-      {/* Modal Interactivo de Actualización de Stock */}
+      {/* Modal de Stock */}
       <StockModal
-        isOpen={modalOpen}
+        isOpen={stockModalOpen}
         producto={selectedProducto}
-        onClose={() => setModalOpen(false)}
+        onClose={() => setStockModalOpen(false)}
         onConfirm={handleActualizarStock}
       />
 
-      {/* Modal Informativo: Esquema SQL para Supabase */}
-      {showSqlModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowSqlModal(false);
-          }}
-        >
-          <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-700 bg-slate-900 text-slate-100 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
-              <div className="flex items-center gap-2.5">
-                <FileCode className="h-5 w-5 text-blue-400" />
-                <h3 className="text-base font-bold text-white">
-                  Instrucciones de Configuración en Supabase
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowSqlModal(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4 text-xs text-slate-300">
-              <p>
-                Para conectar este MVP a tu base de datos de <strong>Supabase</strong>, ve a tu panel de Supabase &gt; <strong>SQL Editor</strong> y pega el siguiente script:
-              </p>
-              <pre className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 p-4 font-mono text-[11px] text-blue-300">
-{`-- Crear tabla productos para Aberturas Miño
-create table if not exists public.productos (
-  id bigint generated by default as identity primary key,
-  codigo_sku text not null unique,
-  nombre text not null,
-  linea text not null,
-  tipo text not null,
-  precio_mayorista numeric(12, 2) not null default 0.00,
-  stock_actual integer not null default 0,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
+      {/* Modal de Agregar Producto */}
+      <AddProductModal
+        isOpen={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onAdd={handleCrearProducto}
+      />
 
--- Habilitar RLS y politicas de lectura/actualizacion
-alter table public.productos enable row level security;
-
-create policy "Permitir lectura publica" on public.productos for select using (true);
-create policy "Permitir actualizacion stock" on public.productos for update using (true);
-create policy "Permitir insercion" on public.productos for insert with check (true);`}
-              </pre>
-              <div className="rounded-lg bg-slate-950 border border-slate-800 p-3 space-y-1">
-                <p className="font-semibold text-slate-200">Variables de entorno requeridas:</p>
-                <code className="block text-[11px] font-mono text-blue-400">NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co</code>
-                <code className="block text-[11px] font-mono text-blue-400">NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-anon-key</code>
-              </div>
-            </div>
-            <div className="flex justify-end border-t border-slate-800 bg-slate-950 px-6 py-3">
-              <button
-                onClick={() => setShowSqlModal(false)}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500"
-              >
-                Entendido
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal de Eliminar Producto */}
+      <DeleteProductModal
+        isOpen={deleteModalOpen}
+        producto={productoToDelete}
+        productosDisponibles={productos}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setProductoToDelete(null);
+        }}
+        onConfirmDelete={handleConfirmarEliminacion}
+      />
     </div>
   );
 }

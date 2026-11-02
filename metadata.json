@@ -2,5 +2,7 @@
   "name": "ERP Mayorista - Aberturas Miño",
   "description": "Sistema de gestión de stock y control de inventario mayorista para fábrica de aberturas con Supabase y Tailwind CSS.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
