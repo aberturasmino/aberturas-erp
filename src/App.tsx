@@ -5,8 +5,10 @@
 
 import React, { useState, useEffect } from 'react';
 import ERPPage from '../app/page';
+import ClientesPage from '../app/clientes/page';
 import LoginPage from '../app/login/page';
 import Loading from '../app/loading';
+import Sidebar from '../components/Sidebar';
 import { getSessionUser, logoutUser, UserSession } from '../lib/supabase';
 
 // Tiempo de carga calibrado: 1.3 segundos (1300 ms)
@@ -17,10 +19,20 @@ export default function App() {
   const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
   const [loadingTitle, setLoadingTitle] = useState<string>('Iniciando Plataforma de Depósito');
   const [loadingSubtitle, setLoadingSubtitle] = useState<string>('Conectando con Supabase y calculando balance de stock...');
+  const [currentPath, setCurrentPath] = useState<string>(
+    typeof window !== 'undefined' ? window.location.pathname || '/' : '/'
+  );
 
   // 1. Carga inicial: exactamente 1,3 segundos al ingresar a la herramienta
   useEffect(() => {
     checkInitialAuth();
+
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname || '/');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const checkInitialAuth = async () => {
@@ -63,7 +75,6 @@ export default function App() {
     return (
       <LoginPage
         onLoginSuccess={async () => {
-          // Carga de 1,3 segundos tras el login
           setLoadingTitle('Verificando Credenciales de Operador');
           setLoadingSubtitle('Iniciando sesión segura y sincronizando depósito...');
           setIsCheckingAuth(true);
@@ -83,13 +94,33 @@ export default function App() {
     );
   }
 
-  // Dashboard del ERP para usuarios autenticados
+  const handleNavigate = (path: string) => {
+    setCurrentPath(path);
+    if (typeof window !== 'undefined' && window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+  };
+
+  // Layout multipágina con Sidebar persistente
   return (
-    <ERPPage
-      currentUser={currentUser}
-      onLogout={() => {
-        setCurrentUser(null);
-      }}
-    />
+    <div className="flex min-h-screen bg-slate-950 text-slate-100">
+      <Sidebar
+        currentPath={currentPath}
+        onNavigate={handleNavigate}
+        onLogout={() => setCurrentUser(null)}
+      />
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
+        {currentPath === '/clientes' ? (
+          <ClientesPage />
+        ) : (
+          <ERPPage
+            currentUser={currentUser}
+            onLogout={() => {
+              setCurrentUser(null);
+            }}
+          />
+        )}
+      </div>
+    </div>
   );
 }

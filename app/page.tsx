@@ -13,7 +13,8 @@ import {
   User,
   Plus,
   Trash2,
-  Layers
+  DollarSign,
+  TrendingUp
 } from 'lucide-react';
 import {
   supabase,
@@ -26,7 +27,8 @@ import {
   logoutUser,
   UserSession,
   createProducto,
-  deleteProducto
+  deleteProducto,
+  updateProducto
 } from '../lib/supabase';
 import StockModal from '../components/StockModal';
 import AddProductModal from '../components/AddProductModal';
@@ -57,7 +59,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
   const [productoToDelete, setProductoToDelete] = useState<Producto | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Paginación para escalabilidad
+  // Paginación
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 12;
 
@@ -91,7 +93,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
       try {
         const { data, error } = await supabase
           .from('productos')
-          .select('id, codigo, descripcion, cantidad')
+          .select('id, codigo, descripcion, cantidad, precio_venta')
           .order('id', { ascending: false });
 
         if (error) throw error;
@@ -123,10 +125,10 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
     setIsRefreshing(true);
     await cargarProductos();
     setIsRefreshing(false);
-    showToast('Inventario sincronizado correctamente');
+    showToast('Inventario y precios sincronizados correctamente');
   };
 
-  // Actualización de stock (cantidad)
+  // Actualización de stock y precio de venta
   const handleOpenStockModal = (producto: Producto) => {
     setSelectedProducto(producto);
     setStockModalOpen(true);
@@ -136,12 +138,20 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
     productoId: number | string,
     nuevoStock: number,
     cantidadAjustada: number,
-    operacion: 'sumar' | 'restar'
+    operacion: 'sumar' | 'restar',
+    nuevoPrecioVenta?: number
   ) => {
+    const payload: Partial<Producto> = {
+      cantidad: nuevoStock,
+    };
+    if (typeof nuevoPrecioVenta === 'number') {
+      payload.precio_venta = nuevoPrecioVenta;
+    }
+
     if (isSupabaseConfigured && !isUsingDemo) {
       const { error } = await supabase
         .from('productos')
-        .update({ cantidad: nuevoStock })
+        .update(payload)
         .eq('id', productoId);
 
       if (error) throw new Error(error.message);
@@ -149,7 +159,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
 
     setProductos((prev) => {
       const updated = prev.map((p) =>
-        p.id === productoId ? { ...p, cantidad: nuevoStock } : p
+        p.id === productoId ? { ...p, ...payload } : p
       );
       if (isUsingDemo) {
         saveLocalDemoStock(updated);
@@ -158,10 +168,14 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
     });
 
     const accionTexto = operacion === 'sumar' ? 'ingresaron' : 'retiraron';
-    showToast(`Se ${accionTexto} ${cantidadAjustada} u. (Cantidad actual: ${nuevoStock})`);
+    showToast(
+      `Se ${accionTexto} ${cantidadAjustada} u. ${
+        nuevoPrecioVenta ? `(Precio: $ ${nuevoPrecioVenta.toLocaleString('es-AR')})` : ''
+      }`
+    );
   };
 
-  // Creación de perfil nuevo (codigo, descripcion, cantidad)
+  // Creación de perfil nuevo (codigo, descripcion, cantidad, precio_venta)
   const handleCrearProducto = async (nuevo: Omit<Producto, 'id'>) => {
     const creado = await createProducto(nuevo);
     setProductos((prev) => [creado, ...prev]);
@@ -215,6 +229,10 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
   const totalCodigos = productos.length;
   const totalUnidades = productos.reduce((acc, curr) => acc + curr.cantidad, 0);
   const totalStockBajo = productos.filter((p) => p.cantidad <= 5).length;
+  const valorizacionInventario = productos.reduce(
+    (acc, curr) => acc + curr.cantidad * (curr.precio_venta || 0),
+    0
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
@@ -233,15 +251,20 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
       )}
 
       {/* Cabecera Limpia */}
-      <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-30">
+      <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 shrink-0">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-base tracking-wider shadow-md shadow-blue-900/30 border border-blue-400/30">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-base shadow-md shadow-blue-900/30 border border-blue-400/30">
               AM
             </div>
-            <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white whitespace-nowrap">
-              ERP Mayorista - Aberturas Miño
-            </h1>
+            <div>
+              <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white whitespace-nowrap">
+                Inventario & Precios de Perfiles
+              </h1>
+              <p className="text-[11px] text-slate-400 hidden sm:block">
+                Aberturas Miño · Remitos de Proveedores y Lista de Venta Mayorista
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
@@ -286,8 +309,8 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
 
       {/* Contenido Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Métricas de Remitos de Perfiles */}
-        <section aria-label="Resumen de Inventario" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Métricas de Remitos & Valorización */}
+        <section aria-label="Resumen de Inventario" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
             <div className="flex items-center justify-between text-slate-400 text-xs mb-1.5">
               <span className="font-semibold uppercase tracking-wider">Perfiles en Catálogo</span>
@@ -318,7 +341,18 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
             <div className={`text-2xl font-bold font-mono tabular-nums ${totalStockBajo > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
               {totalStockBajo}
             </div>
-            <span className="text-[11px] text-slate-500">Perfiles con 5 o menos unidades</span>
+            <span className="text-[11px] text-slate-500">Perfiles con ≤ 5 unidades</span>
+          </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <div className="flex items-center justify-between text-slate-400 text-xs mb-1.5">
+              <span className="font-semibold uppercase tracking-wider">Valorización Stock</span>
+              <DollarSign className="h-4 w-4 text-emerald-400" />
+            </div>
+            <div className="text-xl font-bold font-mono text-emerald-400 tabular-nums truncate">
+              $ {valorizacionInventario.toLocaleString('es-AR')}
+            </div>
+            <span className="text-[11px] text-slate-500">Total a precio venta mayorista</span>
           </div>
         </section>
 
@@ -359,7 +393,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
           </div>
         </section>
 
-        {/* 2 BOTONES ARRIBA DE LA TABLA (Agregar y Eliminar Producto) */}
+        {/* Acciones Superiores de Tabla */}
         <section aria-label="Acciones de Perfiles" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-3">
             <button
@@ -390,16 +424,17 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
           </div>
         </section>
 
-        {/* TABLA DE INVENTARIO: 3 COLUMNAS EXACTAS (CÓDIGO, DESCRIPCIÓN, CANTIDAD) */}
+        {/* TABLA DE INVENTARIO CON 4 COLUMNAS DE DATOS: CÓDIGO, DESCRIPCIÓN, CANTIDAD, PRECIO VENTA */}
         <section aria-label="Tabla de Perfiles de Aluminio" className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden shadow-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider font-mono">
-                  <th scope="col" className="py-3.5 px-4 w-44">CÓDIGO</th>
+                  <th scope="col" className="py-3.5 px-4 w-40">CÓDIGO</th>
                   <th scope="col" className="py-3.5 px-4">DESCRIPCIÓN</th>
-                  <th scope="col" className="py-3.5 px-4 text-center w-36">CANTIDAD</th>
-                  <th scope="col" className="py-3.5 px-4 text-right w-48">GESTIÓN</th>
+                  <th scope="col" className="py-3.5 px-4 text-center w-32">CANTIDAD</th>
+                  <th scope="col" className="py-3.5 px-4 text-right w-40">PRECIO VENTA</th>
+                  <th scope="col" className="py-3.5 px-4 text-right w-44">GESTIÓN</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
@@ -409,12 +444,13 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                       <td className="py-4 px-4"><div className="h-4 w-28 bg-slate-800 rounded"></div></td>
                       <td className="py-4 px-4"><div className="h-4 w-96 bg-slate-800 rounded"></div></td>
                       <td className="py-4 px-4 text-center"><div className="h-4 w-12 bg-slate-800 rounded mx-auto"></div></td>
+                      <td className="py-4 px-4 text-right"><div className="h-4 w-20 bg-slate-800 rounded ml-auto"></div></td>
                       <td className="py-4 px-4 text-right"><div className="h-7 w-28 bg-slate-800 rounded ml-auto"></div></td>
                     </tr>
                   ))
                 ) : paginatedProductos.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-12 text-center text-slate-400">
+                    <td colSpan={5} className="py-12 text-center text-slate-400">
                       <Package className="h-8 w-8 text-slate-600 mx-auto mb-2" />
                       <p className="text-sm font-semibold text-slate-300">
                         No se encontraron perfiles con el criterio de búsqueda
@@ -427,6 +463,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                 ) : (
                   paginatedProductos.map((prod) => {
                     const esCritico = prod.cantidad <= 5;
+                    const precio = prod.precio_venta ?? 0;
                     return (
                       <tr
                         key={prod.id}
@@ -462,7 +499,16 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                           </div>
                         </td>
 
-                        {/* GESTIÓN (Actualizar Stock y Eliminar) */}
+                        {/* 4. PRECIO VENTA */}
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap font-mono font-bold text-emerald-400 tabular-nums">
+                          {precio > 0 ? (
+                            `$ ${precio.toLocaleString('es-AR')}`
+                          ) : (
+                            <span className="text-slate-500 font-normal text-[11px]">A cotizar</span>
+                          )}
+                        </td>
+
+                        {/* GESTIÓN (Actualizar Stock & Precio / Eliminar) */}
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5">
                             <button
@@ -471,7 +517,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-sm shadow-blue-900/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
                             >
                               <Boxes className="h-3.5 w-3.5" />
-                              <span>Actualizar Stock</span>
+                              <span>Ajustar</span>
                             </button>
 
                             <button
@@ -529,10 +575,10 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
 
       {/* Pie de página */}
       <footer className="border-t border-slate-800/80 bg-slate-950 py-4 text-center text-xs text-slate-500">
-        <p>Aberturas Miño · Control de Perfiles de Aluminio y Remitos de Proveedores</p>
+        <p>Aberturas Miño · Control de Perfiles de Aluminio, Stock y Lista Mayorista</p>
       </footer>
 
-      {/* Modal de Stock */}
+      {/* Modal de Stock y Precio */}
       <StockModal
         isOpen={stockModalOpen}
         producto={selectedProducto}

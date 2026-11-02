@@ -18,6 +18,7 @@ export default function AddProductModal({
   const [codigo, setCodigo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [cantidad, setCantidad] = useState<number | ''>(10);
+  const [precioVenta, setPrecioVenta] = useState<number | ''>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,11 +47,13 @@ export default function AddProductModal({
         codigo: codigo.trim().toUpperCase(),
         descripcion: descripcion.trim(),
         cantidad: Number(cantidad),
+        precio_venta: precioVenta === '' ? 0 : Number(precioVenta),
       });
 
       setCodigo('');
       setDescripcion('');
       setCantidad(10);
+      setPrecioVenta(0);
       onClose();
     } catch (err: any) {
       setError(err?.message || 'Error al registrar el perfil.');
@@ -78,7 +81,7 @@ export default function AddProductModal({
               <h2 className="text-base font-bold tracking-tight text-white">
                 Agregar Perfil de Aluminio
               </h2>
-              <span className="text-xs text-slate-400">Estructura según Remito de Proveedor</span>
+              <span className="text-xs text-slate-400">Estructura según Remito y Precio Mayorista</span>
             </div>
           </div>
           <button
@@ -90,7 +93,7 @@ export default function AddProductModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
           {error && (
             <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
@@ -119,7 +122,7 @@ export default function AddProductModal({
               DESCRIPCIÓN (Nombre del perfil y especificaciones técnicas)
             </label>
             <textarea
-              rows={3}
+              rows={2}
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
               placeholder="Ej. JAMBA DE MARCO CORREDIZA DE 3 HOJAS Kg/T 11,08 Negro"
@@ -128,19 +131,42 @@ export default function AddProductModal({
             />
           </div>
 
-          {/* CANTIDAD */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-              CANTIDAD (Unidades en Stock)
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={cantidad}
-              onChange={(e) => setCantidad(e.target.value === '' ? '' : Number(e.target.value))}
-              required
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-mono text-white focus:border-blue-500 focus:outline-none"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* CANTIDAD */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                CANTIDAD (Stock)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={cantidad}
+                onChange={(e) => setCantidad(e.target.value === '' ? '' : Number(e.target.value))}
+                required
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-mono text-white focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            {/* PRECIO VENTA */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                PRECIO VENTA (ARS)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-500">
+                  $
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={precioVenta === '' ? '' : precioVenta}
+                  onChange={(e) => setPrecioVenta(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                  placeholder="0.00"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 pl-7 pr-3 py-2 text-xs font-mono text-emerald-400 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
