@@ -56,32 +56,32 @@ export default function DeleteProductModal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-sm overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isDeleting) onClose();
       }}
     >
-      <div className="relative w-full max-w-md overflow-hidden rounded-xl border border-red-500/30 bg-slate-900 shadow-2xl text-slate-100">
-        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/10 text-red-400 border border-red-500/30">
-              <Trash2 className="h-4 w-4" />
+      <div className="relative w-[95%] sm:w-full max-w-md overflow-hidden rounded-xl border border-red-500/30 bg-slate-900 shadow-2xl text-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-400 border border-red-500/30">
+              <Trash2 className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Eliminar Perfil</h2>
-              <p className="text-xs text-slate-400">Confirmación de baja de inventario</p>
+              <h2 className="text-sm sm:text-base font-bold text-white">Eliminar Perfil</h2>
+              <p className="text-[11px] sm:text-xs text-slate-400">Confirmación de baja de inventario</p>
             </div>
           </div>
           <button
             onClick={onClose}
             disabled={isDeleting}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           {error && (
             <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
               <AlertTriangle className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
@@ -97,7 +97,7 @@ export default function DeleteProductModal({
               <select
                 value={selectedId}
                 onChange={(e) => setSelectedId(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
+                className="w-full min-h-[44px] rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
               >
                 {productosDisponibles.map((p) => (
                   <option key={p.id} value={p.id} className="bg-slate-900">
@@ -133,12 +133,12 @@ export default function DeleteProductModal({
             </p>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
             <button
               type="button"
               onClick={onClose}
               disabled={isDeleting}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white"
+              className="w-full sm:w-auto min-h-[44px] flex items-center justify-center rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white"
             >
               Cancelar
             </button>
@@ -146,7 +146,7 @@ export default function DeleteProductModal({
               type="button"
               onClick={handleDelete}
               disabled={isDeleting || !currentProducto}
-              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+              className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-5 py-2 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50"
             >
               <Trash2 className="h-4 w-4" />
               <span>{isDeleting ? 'Eliminando...' : 'Eliminar Perfil'}</span>

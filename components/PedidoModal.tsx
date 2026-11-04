@@ -257,14 +257,14 @@ export default function PedidoModal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-sm overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isSubmitting) onClose();
       }}
     >
-      <div className="relative w-full max-w-3xl overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl text-slate-100 my-auto">
-        {/* Cabecera Industrial */}
-        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
+      <div className="relative w-[95%] sm:w-full max-w-3xl overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl text-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150">
+        {/* Cabecera Industrial con padding responsive */}
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-3">
             <div
               className={`flex h-10 w-10 items-center justify-center rounded-xl font-bold shadow-md ${
@@ -582,20 +582,20 @@ export default function PedidoModal({
             </div>
           </div>
 
-          {/* Botones */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+          {/* Botones de Acción con altura táctil mínima de 44px */}
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-800">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white"
+              className="w-full sm:w-auto min-h-[44px] flex items-center justify-center rounded-lg border border-slate-700 bg-slate-800 px-5 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSubmitting || lineas.length === 0 || (hayStockInsuficiente && tipo === 'VENTA')}
-              className={`flex items-center gap-2 rounded-lg px-6 py-2.5 text-xs font-bold text-white shadow-lg transition-all ${
+              className={`w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 rounded-lg px-6 py-2.5 text-xs font-bold text-white shadow-lg transition-all active:scale-[0.98] ${
                 isSubmitting || lineas.length === 0 || (hayStockInsuficiente && tipo === 'VENTA')
                   ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
                   : tipo === 'VENTA'

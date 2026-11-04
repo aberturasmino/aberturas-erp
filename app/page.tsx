@@ -426,31 +426,37 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
 
         {/* TABLA DE INVENTARIO CON 4 COLUMNAS DE DATOS: CÓDIGO, DESCRIPCIÓN, CANTIDAD, PRECIO VENTA */}
         <section aria-label="Tabla de Perfiles de Aluminio" className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden shadow-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          {/* Indicador de scroll horizontal para móviles */}
+          <div className="sm:hidden px-3 py-1.5 bg-slate-950/70 border-b border-slate-800/80 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+            <span>Desliza para ver descripción, precio y gestión</span>
+            <span className="text-blue-400 font-bold">● Scroll</span>
+          </div>
+
+          <div className="overflow-x-auto touch-pan-x">
+            <table className="w-full text-left text-[11px] sm:text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider font-mono">
-                  <th scope="col" className="py-3.5 px-4 w-40">CÓDIGO</th>
-                  <th scope="col" className="py-3.5 px-4">DESCRIPCIÓN</th>
-                  <th scope="col" className="py-3.5 px-4 text-center w-32">CANTIDAD</th>
-                  <th scope="col" className="py-3.5 px-4 text-right w-40">PRECIO VENTA</th>
-                  <th scope="col" className="py-3.5 px-4 text-right w-44">GESTIÓN</th>
+                <tr className="border-b border-slate-800 bg-slate-950/90 text-slate-400 font-semibold uppercase tracking-wider font-mono">
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 w-36 sm:w-40">CÓDIGO</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 min-w-[200px]">DESCRIPCIÓN</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-center w-28 sm:w-32">CANTIDAD</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-right w-36 sm:w-40">PRECIO VENTA</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-right w-36 sm:w-44">GESTIÓN</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, idx) => (
                     <tr key={idx} className="animate-pulse">
-                      <td className="py-4 px-4"><div className="h-4 w-28 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4"><div className="h-4 w-96 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4 text-center"><div className="h-4 w-12 bg-slate-800 rounded mx-auto"></div></td>
-                      <td className="py-4 px-4 text-right"><div className="h-4 w-20 bg-slate-800 rounded ml-auto"></div></td>
-                      <td className="py-4 px-4 text-right"><div className="h-7 w-28 bg-slate-800 rounded ml-auto"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4"><div className="h-4 w-24 bg-slate-800 rounded"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4"><div className="h-4 w-72 bg-slate-800 rounded"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4 text-center"><div className="h-4 w-12 bg-slate-800 rounded mx-auto"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4 text-right"><div className="h-4 w-20 bg-slate-800 rounded ml-auto"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4 text-right"><div className="h-7 w-24 bg-slate-800 rounded ml-auto"></div></td>
                     </tr>
                   ))
                 ) : paginatedProductos.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-slate-400">
+                    <td colSpan={5} className="py-12 px-4 text-center text-slate-400">
                       <Package className="h-8 w-8 text-slate-600 mx-auto mb-2" />
                       <p className="text-sm font-semibold text-slate-300">
                         No se encontraron perfiles con el criterio de búsqueda
@@ -470,20 +476,20 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                         className="hover:bg-slate-800/50 transition-colors group"
                       >
                         {/* 1. CÓDIGO */}
-                        <td className="py-3.5 px-4 font-mono font-bold text-blue-400 whitespace-nowrap">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 font-mono font-bold text-blue-400 whitespace-nowrap">
                           {prod.codigo}
                         </td>
 
                         {/* 2. DESCRIPCIÓN */}
-                        <td className="py-3.5 px-4 font-medium text-slate-200">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 font-medium text-slate-200">
                           {prod.descripcion}
                         </td>
 
                         {/* 3. CANTIDAD */}
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap font-mono tabular-nums">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-center whitespace-nowrap font-mono tabular-nums">
                           <div className="inline-flex items-center gap-1.5">
                             <span
-                              className={`text-sm font-bold px-2.5 py-0.5 rounded ${
+                              className={`text-xs sm:text-sm font-bold px-2 py-0.5 rounded ${
                                 esCritico
                                   ? 'bg-amber-950 text-amber-400 border border-amber-800 font-extrabold'
                                   : 'text-slate-100 bg-slate-950 border border-slate-800'
@@ -500,7 +506,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                         </td>
 
                         {/* 4. PRECIO VENTA */}
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap font-mono font-bold text-emerald-400 tabular-nums">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-right whitespace-nowrap font-mono font-bold text-emerald-400 tabular-nums">
                           {precio > 0 ? (
                             `$ ${precio.toLocaleString('es-AR')}`
                           ) : (
@@ -509,12 +515,12 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                         </td>
 
                         {/* GESTIÓN (Actualizar Stock & Precio / Eliminar) */}
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => handleOpenStockModal(prod)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-sm shadow-blue-900/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 min-h-[36px] sm:min-h-[32px] text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-sm shadow-blue-900/30 transition-all active:scale-[0.98]"
                             >
                               <Boxes className="h-3.5 w-3.5" />
                               <span>Ajustar</span>
@@ -523,7 +529,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                             <button
                               type="button"
                               onClick={() => handleOpenDeleteSingle(prod)}
-                              className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              className="p-1.5 min-h-[36px] min-w-[36px] flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                               title="Eliminar este perfil"
                               aria-label={`Eliminar ${prod.codigo}`}
                             >

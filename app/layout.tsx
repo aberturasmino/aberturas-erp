@@ -1,10 +1,16 @@
 import React from 'react';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Sidebar from '../components/Sidebar';
 
 export const metadata: Metadata = {
   title: 'ERP Mayorista - Aberturas Miño',
   description: 'Sistema de gestión de stock e inventario mayorista de aberturas de aluminio y chapa.',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({
@@ -22,7 +28,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white flex min-h-screen">
+      <body className="bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white flex flex-col md:flex-row min-h-screen">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
           {children}

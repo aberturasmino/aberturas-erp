@@ -346,33 +346,39 @@ export default function ClientesPage() {
 
         {/* TABLA INDUSTRIAL DE CLIENTES */}
         <section aria-label="Tabla de Clientes" className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden shadow-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          {/* Indicador de scroll horizontal para móviles */}
+          <div className="sm:hidden px-3 py-1.5 bg-slate-950/70 border-b border-slate-800/80 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+            <span>Desliza para ver CUIT, IVA y contacto</span>
+            <span className="text-blue-400 font-bold">● Scroll</span>
+          </div>
+
+          <div className="overflow-x-auto touch-pan-x">
+            <table className="w-full text-left text-[11px] sm:text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider font-mono">
-                  <th scope="col" className="py-3.5 px-4">RAZÓN SOCIAL</th>
-                  <th scope="col" className="py-3.5 px-4 w-36">CUIT / DNI</th>
-                  <th scope="col" className="py-3.5 px-4 w-44">CONDICIÓN IVA</th>
-                  <th scope="col" className="py-3.5 px-4">CONTACTO</th>
-                  <th scope="col" className="py-3.5 px-4">DIRECCIÓN</th>
-                  <th scope="col" className="py-3.5 px-4 text-right w-28">ACCIONES</th>
+                <tr className="border-b border-slate-800 bg-slate-950/90 text-slate-400 font-semibold uppercase tracking-wider font-mono">
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 min-w-[180px]">RAZÓN SOCIAL</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 w-32 sm:w-36">CUIT / DNI</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 w-36 sm:w-44">CONDICIÓN IVA</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 min-w-[150px]">CONTACTO</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 min-w-[160px]">DIRECCIÓN</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-right w-24 sm:w-28">ACCIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
                 {isLoading ? (
                   Array.from({ length: 4 }).map((_, idx) => (
                     <tr key={idx} className="animate-pulse">
-                      <td className="py-4 px-4"><div className="h-4 w-48 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4"><div className="h-4 w-28 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4"><div className="h-4 w-32 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4"><div className="h-4 w-40 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4"><div className="h-4 w-52 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4 text-right"><div className="h-6 w-16 bg-slate-800 rounded ml-auto"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4"><div className="h-4 w-40 bg-slate-800 rounded"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4"><div className="h-4 w-24 bg-slate-800 rounded"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4"><div className="h-4 w-28 bg-slate-800 rounded"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4"><div className="h-4 w-32 bg-slate-800 rounded"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4"><div className="h-4 w-44 bg-slate-800 rounded"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4 text-right"><div className="h-6 w-14 bg-slate-800 rounded ml-auto"></div></td>
                     </tr>
                   ))
                 ) : filteredClientes.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <td colSpan={6} className="py-12 px-4 text-center text-slate-400">
                       <Users className="h-8 w-8 text-slate-600 mx-auto mb-2" />
                       <p className="text-sm font-semibold text-slate-300">
                         No se encontraron clientes registrados
@@ -389,8 +395,8 @@ export default function ClientesPage() {
                       className="hover:bg-slate-800/50 transition-colors group"
                     >
                       {/* RAZÓN SOCIAL */}
-                      <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
+                      <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 font-bold text-white whitespace-nowrap">
+                        <div className="flex items-center gap-2">
                           <div className="flex h-7 w-7 items-center justify-center rounded bg-slate-800 text-blue-400 border border-slate-700 shrink-0">
                             <Building2 className="h-3.5 w-3.5" />
                           </div>
@@ -399,14 +405,14 @@ export default function ClientesPage() {
                       </td>
 
                       {/* CUIT */}
-                      <td className="py-3.5 px-4 font-mono text-slate-300 font-medium whitespace-nowrap">
+                      <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 font-mono text-slate-300 font-medium whitespace-nowrap">
                         {cliente.cuit}
                       </td>
 
                       {/* CONDICIÓN IVA */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
+                      <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 whitespace-nowrap">
                         <span
-                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded border ${getCondicionBadge(
+                          className={`text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded border ${getCondicionBadge(
                             cliente.condicion_iva
                           )}`}
                         >
@@ -415,7 +421,7 @@ export default function ClientesPage() {
                       </td>
 
                       {/* CONTACTO */}
-                      <td className="py-3.5 px-4 text-slate-300">
+                      <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-slate-300">
                         <div className="flex flex-col gap-0.5 text-xs">
                           {cliente.telefono && (
                             <span className="flex items-center gap-1.5 text-slate-300">
@@ -426,7 +432,7 @@ export default function ClientesPage() {
                           {cliente.email && (
                             <span className="flex items-center gap-1.5 text-slate-400 text-[11px]">
                               <Mail className="h-3 w-3 text-slate-500 shrink-0" />
-                              <span className="truncate max-w-[200px]">{cliente.email}</span>
+                              <span className="truncate max-w-[180px]">{cliente.email}</span>
                             </span>
                           )}
                           {!cliente.telefono && !cliente.email && (

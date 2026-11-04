@@ -32,9 +32,24 @@ export default function Sidebar({ currentPath, onNavigate, onLogout }: SidebarPr
     } else if (typeof window !== 'undefined') {
       setActivePath(window.location.pathname);
     }
-
     cargarUsuario();
   }, [currentPath]);
+
+  // Prevenir scroll en el body cuando el menú móvil está abierto
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (isOpenMobile) {
+        document.body.style.overflow = 'hidden';
+      } else {
+        document.body.style.overflow = '';
+      }
+    }
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = '';
+      }
+    };
+  }, [isOpenMobile]);
 
   const cargarUsuario = async () => {
     const session = await getSessionUser();
@@ -86,25 +101,38 @@ export default function Sidebar({ currentPath, onNavigate, onLogout }: SidebarPr
     },
   ];
 
-  const SidebarContent = () => (
-    <div className="flex h-full flex-col justify-between bg-slate-900 border-r border-slate-800 text-slate-100">
+  // Contenido compartido del Sidebar (Mobile Drawer y Desktop Docked)
+  const SidebarNavContent = () => (
+    <div className="flex h-full flex-col justify-between bg-slate-900 border-r border-slate-800 text-slate-100 overflow-y-auto">
       <div>
-        {/* Cabecera / Marca Industrial */}
-        <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800 bg-slate-950/60">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 font-black text-white text-base shadow-lg shadow-blue-900/30 border border-blue-400/30">
-            AM
+        {/* Cabecera / Identidad Industrial */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-950/70">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 font-black text-white text-base shadow-lg shadow-blue-900/40 border border-blue-400/30">
+              AM
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="font-extrabold text-sm tracking-tight text-white truncate">
+                Aberturas Miño
+              </span>
+              <span className="font-mono text-[10px] text-blue-400 font-semibold uppercase tracking-wider">
+                ERP Mayorista
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="font-extrabold text-sm tracking-tight text-white truncate">
-              Aberturas Miño
-            </span>
-            <span className="font-mono text-[10px] text-blue-400 font-semibold uppercase tracking-wider">
-              ERP Mayorista
-            </span>
-          </div>
+
+          {/* Botón de cierre visible únicamente en móvil dentro del drawer */}
+          <button
+            type="button"
+            onClick={() => setIsOpenMobile(false)}
+            className="md:hidden flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Cerrar navegación"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        {/* Sección de Navegación */}
+        {/* Módulos de Navegación con touch targets mínimos de 44px */}
         <nav className="p-3 space-y-1.5" aria-label="Navegación principal">
           <div className="px-3 py-2 text-[10px] font-mono font-semibold uppercase tracking-widest text-slate-500">
             Módulos Principales
@@ -121,7 +149,7 @@ export default function Sidebar({ currentPath, onNavigate, onLogout }: SidebarPr
                 key={item.name}
                 href={item.path}
                 onClick={(e) => handleLinkClick(e, item.path)}
-                className={`group flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`group flex items-center justify-between px-3.5 py-3 md:py-2.5 min-h-[44px] rounded-lg text-xs font-semibold transition-all active:scale-[0.99] ${
                   isSelected
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
                     : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80'
@@ -133,16 +161,14 @@ export default function Sidebar({ currentPath, onNavigate, onLogout }: SidebarPr
                       isSelected ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'
                     }`}
                   />
-                  <span>{item.name}</span>
+                  <span className="truncate">{item.name}</span>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <span
                     className={`text-[10px] px-2 py-0.5 rounded font-mono ${
                       isSelected
                         ? 'bg-blue-700 text-blue-100'
-                        : item.badge === 'Pronto'
-                        ? 'bg-slate-800 text-slate-500'
                         : 'bg-slate-800 text-slate-400'
                     }`}
                   >
@@ -160,11 +186,11 @@ export default function Sidebar({ currentPath, onNavigate, onLogout }: SidebarPr
         </nav>
       </div>
 
-      {/* Pie del Sidebar: Usuario & Sesión de 2h */}
-      <div className="p-3 border-t border-slate-800 bg-slate-950/40">
-        <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3 mb-2 space-y-2">
+      {/* Pie del Sidebar: Usuario & Cierre de Sesión */}
+      <div className="p-3 border-t border-slate-800 bg-slate-950/50">
+        <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3 mb-2 space-y-1">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-blue-400 border border-slate-700">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-blue-400 border border-slate-700 shrink-0">
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div className="flex flex-col min-w-0">
@@ -181,9 +207,9 @@ export default function Sidebar({ currentPath, onNavigate, onLogout }: SidebarPr
         <button
           type="button"
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-500/40 text-xs font-semibold transition-all"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 min-h-[44px] rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-500/40 text-xs font-semibold transition-all active:scale-[0.98]"
         >
-          <LogOut className="h-3.5 w-3.5" />
+          <LogOut className="h-4 w-4 shrink-0" />
           <span>Cerrar Sesión</span>
         </button>
       </div>
@@ -192,39 +218,59 @@ export default function Sidebar({ currentPath, onNavigate, onLogout }: SidebarPr
 
   return (
     <>
-      {/* Botón flotante móvil para abrir sidebar */}
-      <div className="lg:hidden fixed top-3 left-3 z-40">
-        <button
-          type="button"
-          onClick={() => setIsOpenMobile(true)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-200 shadow-md hover:bg-slate-800"
-          aria-label="Abrir menú"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-      </div>
+      {/* 1. BARRA SUPERIOR MÓVIL (Mobile-First: visible solo en < md) */}
+      <header className="md:hidden sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setIsOpenMobile(true)}
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 active:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+            aria-label="Abrir menú de navegación"
+            aria-expanded={isOpenMobile}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 font-black text-white text-xs border border-blue-400/30">
+              AM
+            </div>
+            <span className="font-bold text-sm text-white tracking-tight">
+              Aberturas Miño
+            </span>
+          </div>
+        </div>
 
-      {/* Sidebar Escritorio Persistente (Desktop) */}
-      <aside className="hidden lg:flex flex-col w-64 shrink-0 h-screen sticky top-0 z-30">
-        <SidebarContent />
+        <span className="text-[10px] font-mono text-blue-400 font-bold px-2 py-1 rounded bg-blue-950/80 border border-blue-800/80 uppercase">
+          {activePath === '/clientes'
+            ? 'Clientes'
+            : activePath === '/pedidos'
+            ? 'Pedidos'
+            : 'Inventario'}
+        </span>
+      </header>
+
+      {/* 2. SIDEBAR ESCRITORIO ANCLADO Y FIJO (Desktop: visible a partir de md:) */}
+      <aside className="hidden md:flex flex-col w-64 shrink-0 h-screen sticky top-0 z-30">
+        <SidebarNavContent />
       </aside>
 
-      {/* Sidebar Móvil (Drawer) */}
+      {/* 3. SIDEBAR MÓVIL EN DRAWER CON OVERLAY (Mobile-First: < md:) */}
       {isOpenMobile && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="md:hidden fixed inset-0 z-50 flex"
+        >
+          {/* Backdrop con desenfoque suave */}
           <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
             onClick={() => setIsOpenMobile(false)}
+            aria-hidden="true"
           />
-          <div className="relative flex flex-col w-72 max-w-[85vw] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200">
-            <button
-              onClick={() => setIsOpenMobile(false)}
-              className="absolute top-3 right-3 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-              aria-label="Cerrar menú"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <SidebarContent />
+
+          {/* Panel Deslizante Drawer */}
+          <div className="relative flex flex-col w-[85%] max-w-xs h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+            <SidebarNavContent />
           </div>
         </div>
       )}

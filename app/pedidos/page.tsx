@@ -301,35 +301,41 @@ export default function PedidosPage() {
 
         {/* TABLA DE PEDIDOS */}
         <section aria-label="Tabla de Historial de Pedidos" className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden shadow-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          {/* Indicador de scroll horizontal para móviles */}
+          <div className="sm:hidden px-3 py-1.5 bg-slate-950/70 border-b border-slate-800/80 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+            <span>Desliza para ver tipo, estado, total y remito</span>
+            <span className="text-blue-400 font-bold">● Scroll</span>
+          </div>
+
+          <div className="overflow-x-auto touch-pan-x">
+            <table className="w-full text-left text-[11px] sm:text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider font-mono">
-                  <th scope="col" className="py-3.5 px-4 w-32">Nº PEDIDO</th>
-                  <th scope="col" className="py-3.5 px-4">CLIENTE / PROVEEDOR</th>
-                  <th scope="col" className="py-3.5 px-4 text-center w-28">TIPO</th>
-                  <th scope="col" className="py-3.5 px-4 text-center w-32">ESTADO</th>
-                  <th scope="col" className="py-3.5 px-4 text-center w-28">LÍNEAS</th>
-                  <th scope="col" className="py-3.5 px-4 text-right w-36">TOTAL PEDIDO</th>
-                  <th scope="col" className="py-3.5 px-4 text-right w-24">ACCIONES</th>
+                <tr className="border-b border-slate-800 bg-slate-950/90 text-slate-400 font-semibold uppercase tracking-wider font-mono">
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 w-28 sm:w-32">Nº PEDIDO</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 min-w-[180px]">CLIENTE / PROVEEDOR</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-center w-24 sm:w-28">TIPO</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-center w-28 sm:w-32">ESTADO</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-center w-24 sm:w-28">LÍNEAS</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-right w-32 sm:w-36">TOTAL PEDIDO</th>
+                  <th scope="col" className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-right w-28 sm:w-32">ACCIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
                 {isLoading ? (
                   Array.from({ length: 4 }).map((_, idx) => (
                     <tr key={idx} className="animate-pulse">
-                      <td className="py-4 px-4"><div className="h-4 w-20 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4"><div className="h-4 w-48 bg-slate-800 rounded"></div></td>
-                      <td className="py-4 px-4 text-center"><div className="h-4 w-16 bg-slate-800 rounded mx-auto"></div></td>
-                      <td className="py-4 px-4 text-center"><div className="h-4 w-20 bg-slate-800 rounded mx-auto"></div></td>
-                      <td className="py-4 px-4 text-center"><div className="h-4 w-10 bg-slate-800 rounded mx-auto"></div></td>
-                      <td className="py-4 px-4 text-right"><div className="h-4 w-24 bg-slate-800 rounded ml-auto"></div></td>
-                      <td className="py-4 px-4 text-right"><div className="h-6 w-12 bg-slate-800 rounded ml-auto"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4"><div className="h-4 w-16 bg-slate-800 rounded"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4"><div className="h-4 w-40 bg-slate-800 rounded"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4 text-center"><div className="h-4 w-14 bg-slate-800 rounded mx-auto"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4 text-center"><div className="h-4 w-16 bg-slate-800 rounded mx-auto"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4 text-center"><div className="h-4 w-10 bg-slate-800 rounded mx-auto"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4 text-right"><div className="h-4 w-20 bg-slate-800 rounded ml-auto"></div></td>
+                      <td className="py-3 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4 text-right"><div className="h-6 w-16 bg-slate-800 rounded ml-auto"></div></td>
                     </tr>
                   ))
                 ) : filteredPedidos.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <td colSpan={7} className="py-12 px-4 text-center text-slate-400">
                       <ClipboardList className="h-8 w-8 text-slate-600 mx-auto mb-2" />
                       <p className="text-sm font-semibold text-slate-300">
                         No se encontraron pedidos con el criterio de búsqueda
@@ -356,7 +362,7 @@ export default function PedidosPage() {
                         className="hover:bg-slate-800/50 transition-colors group"
                       >
                         {/* 1. NÚMERO DE PEDIDO */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 whitespace-nowrap">
                           <div className="flex flex-col">
                             <span className="font-mono font-bold text-white text-xs">
                               #{pedido.id}
@@ -369,7 +375,7 @@ export default function PedidosPage() {
                         </td>
 
                         {/* 2. CLIENTE */}
-                        <td className="py-3.5 px-4 text-slate-200">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-slate-200">
                           <div className="flex flex-col">
                             <span className="font-bold text-white text-xs">
                               {pedido.cliente?.razon_social || 'Cliente General'}
@@ -388,9 +394,9 @@ export default function PedidosPage() {
                         </td>
 
                         {/* 3. TIPO (COMPRA / VENTA) */}
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-center whitespace-nowrap">
                           <span
-                            className={`text-[10px] font-bold px-2.5 py-0.5 rounded border uppercase font-mono ${getTipoBadge(
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase font-mono ${getTipoBadge(
                               pedido.tipo
                             )}`}
                           >
@@ -399,7 +405,7 @@ export default function PedidosPage() {
                         </td>
 
                         {/* 4. ESTADO */}
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-center whitespace-nowrap">
                           <span
                             className={`text-[10px] font-semibold px-2 py-0.5 rounded border font-mono ${getEstadoBadge(
                               pedido.estado
@@ -410,14 +416,14 @@ export default function PedidosPage() {
                         </td>
 
                         {/* 5. LÍNEAS */}
-                        <td className="py-3.5 px-4 text-center font-mono text-xs text-slate-300 whitespace-nowrap">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-center font-mono text-xs text-slate-300 whitespace-nowrap">
                           <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800">
                             {cantLineas} {cantLineas === 1 ? 'ítem' : 'ítems'}
                           </span>
                         </td>
 
                         {/* 6. TOTAL */}
-                        <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-400 text-xs whitespace-nowrap tabular-nums">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-right font-mono font-bold text-emerald-400 text-xs whitespace-nowrap tabular-nums">
                           $ {pedido.total_pedido.toLocaleString('es-AR')}
                         </td>
 

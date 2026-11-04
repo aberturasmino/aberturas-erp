@@ -104,7 +104,7 @@ export default function App() {
 
   // Layout multipágina con Sidebar persistente
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100">
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100">
       <Sidebar
         currentPath={currentPath}
         onNavigate={handleNavigate}
