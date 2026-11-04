@@ -13,7 +13,9 @@ import {
   DollarSign,
   Building2,
   Package,
-  Layers
+  Layers,
+  Receipt,
+  FileDown
 } from 'lucide-react';
 import {
   Producto,
@@ -21,19 +23,21 @@ import {
   TipoPedido,
   NuevaLineaPedido,
   NuevoPedidoInput,
+  Pedido,
   getClientes,
   getProductos
 } from '../lib/supabase';
+import { generateRemitoPDF } from '../utils/generatePDF';
 
 interface PedidoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => Promise<void>;
-  onConfirmPedido: (input: NuevoPedidoInput) => Promise<void>;
+  onConfirmPedido: (input: NuevoPedidoInput) => Promise<Pedido | any>;
 }
 
 interface LineaFormState {
-  id: string; // temporary key for UI rendering
+  id: string; // ID temporal para el formulario
   producto_id: number | string;
   cantidad: number;
   precio_unitario: number;
@@ -48,6 +52,7 @@ export default function PedidoModal({
   const [tipo, setTipo] = useState<TipoPedido>('VENTA');
   const [clienteId, setClienteId] = useState<string>('');
   const [notas, setNotas] = useState<string>('');
+  const [incluyeIva, setIncluyeIva] = useState<boolean>(true);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [lineas, setLineas] = useState<LineaFormState[]>([]);
@@ -60,6 +65,7 @@ export default function PedidoModal({
       cargarCatalogos();
       setTipo('VENTA');
       setNotas('');
+      setIncluyeIva(true);
       setErrorMessage(null);
       setIsSubmitting(false);
     }
@@ -76,7 +82,7 @@ export default function PedidoModal({
         setClienteId(String(cls[0].id));
       }
 
-      // Iniciar con una línea por defecto si hay productos
+      // Iniciar con una primera línea si hay productos
       if (prods.length > 0) {
         setLineas([
           {
@@ -150,7 +156,7 @@ export default function PedidoModal({
     );
   };
 
-  // Cálculos reactivos de subtotales y total
+  // Cálculos reactivos de subtotales, IVA y total final
   const lineasCalculadas = lineas.map((l) => {
     const productoObj = productos.find((p) => String(p.id) === String(l.producto_id));
     const subtotal = l.cantidad * l.precio_unitario;
@@ -166,7 +172,9 @@ export default function PedidoModal({
     };
   });
 
-  const totalFinal = lineasCalculadas.reduce((acc, curr) => acc + curr.subtotal, 0);
+  const subtotal = lineasCalculadas.reduce((acc, curr) => acc + curr.subtotal, 0);
+  const montoIva = incluyeIva ? Math.round(subtotal * 0.21 * 100) / 100 : 0;
+  const totalFinal = Math.round((subtotal + montoIva) * 100) / 100;
   const totalUnidades = lineasCalculadas.reduce((acc, curr) => acc + curr.cantidad, 0);
   const hayStockInsuficiente = lineasCalculadas.some((l) => l.excedeStock);
 
@@ -197,6 +205,10 @@ export default function PedidoModal({
         cliente_id: clienteId,
         tipo,
         estado: 'COMPLETADO',
+        subtotal,
+        incluye_iva: incluyeIva,
+        monto_iva: montoIva,
+        total_pedido: totalFinal,
         notas: notas.trim(),
         lineas: lineas.map((l) => ({
           producto_id: l.producto_id,
@@ -205,7 +217,33 @@ export default function PedidoModal({
         })),
       };
 
-      await onConfirmPedido(payload);
+      // 1. Guardar en Base de Datos (Cabecera, Detalle y Ajuste de Stock)
+      const pedidoCreado = await onConfirmPedido(payload);
+
+      // 2. Descargar automáticamente el Remito oficial en PDF
+      const clienteSeleccionado = clientes.find((c) => String(c.id) === String(clienteId));
+      const lineasParaPdf = lineasCalculadas.map((l) => ({
+        codigo: l.productoObj?.codigo,
+        descripcion: l.productoObj?.descripcion,
+        cantidad: l.cantidad,
+        precio_unitario: l.precio_unitario,
+        subtotal: l.subtotal,
+      }));
+
+      generateRemitoPDF({
+        id: pedidoCreado?.id || Date.now(),
+        tipo,
+        estado: 'COMPLETADO',
+        created_at: pedidoCreado?.created_at || new Date().toISOString(),
+        notas: notas.trim(),
+        subtotal,
+        incluye_iva: incluyeIva,
+        monto_iva: montoIva,
+        total_pedido: totalFinal,
+        cliente: clienteSeleccionado,
+        detalles: lineasParaPdf,
+      });
+
       await onSuccess();
       onClose();
     } catch (err: any) {
@@ -455,10 +493,49 @@ export default function PedidoModal({
             />
           </div>
 
-          {/* Panel de Resumen y Totalización */}
+          {/* INTERRUPTOR DE IVA (21%) */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl border border-slate-800 bg-slate-950/80">
+            <div className="flex items-center gap-3">
+              <div
+                className={`p-2 rounded-lg border transition-colors ${
+                  incluyeIva
+                    ? 'bg-blue-600/20 border-blue-500/30 text-blue-400'
+                    : 'bg-slate-800 border-slate-700 text-slate-500'
+                }`}
+              >
+                <Receipt className="h-4 w-4" />
+              </div>
+              <div>
+                <label
+                  htmlFor="toggle-iva"
+                  className="text-xs font-bold text-slate-200 block cursor-pointer"
+                >
+                  ¿Incluir IVA (21%)?
+                </label>
+                <span className="text-[11px] text-slate-400">
+                  {incluyeIva
+                    ? 'Aplica 21% de alícuota sobre el subtotal discriminado'
+                    : 'Operación sin IVA discriminado / Precio final directo'}
+                </span>
+              </div>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                id="toggle-iva"
+                type="checkbox"
+                checked={incluyeIva}
+                onChange={(e) => setIncluyeIva(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          {/* Panel de Resumen y Desglose Financiero */}
           <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono">
-              <div className="space-y-0.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-mono">
+              <div className="space-y-1">
                 <span className="text-xs text-slate-400 uppercase tracking-wider block">
                   Resumen de la Transacción
                 </span>
@@ -466,20 +543,41 @@ export default function PedidoModal({
                   {lineasCalculadas.length} ítems · Total de{' '}
                   <strong className="text-white">{totalUnidades} barras/unidades</strong>
                 </span>
-                <span className="text-[11px] text-blue-400 block font-sans">
-                  {tipo === 'VENTA'
-                    ? '● Al confirmar, se restará stock en depósito automáticamente'
-                    : '● Al confirmar, se sumará stock en depósito automáticamente'}
-                </span>
+                <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-sans pt-1">
+                  <FileDown className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    Al confirmar se descargará automáticamente el <strong>Remito en PDF</strong> con
+                    el desglose completo.
+                  </span>
+                </div>
               </div>
 
-              <div className="text-right border-t sm:border-t-0 sm:border-l border-slate-800 pt-2 sm:pt-0 sm:pl-6">
-                <span className="text-[11px] text-slate-400 uppercase tracking-widest block">
-                  Total del Pedido
-                </span>
-                <span className="text-2xl font-black text-emerald-400 tabular-nums">
-                  $ {totalFinal.toLocaleString('es-AR')}
-                </span>
+              {/* Liquidación: Subtotal, IVA 21% y Total Final */}
+              <div className="text-right border-t sm:border-t-0 sm:border-l border-slate-800 pt-2 sm:pt-0 sm:pl-6 space-y-1 min-w-[200px]">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>SUBTOTAL:</span>
+                  <span className="font-bold text-slate-200 tabular-nums">
+                    $ {subtotal.toLocaleString('es-AR')}
+                  </span>
+                </div>
+
+                {incluyeIva && (
+                  <div className="flex items-center justify-between text-xs text-blue-400">
+                    <span>IVA (21%):</span>
+                    <span className="font-bold tabular-nums">
+                      +$ {montoIva.toLocaleString('es-AR')}
+                    </span>
+                  </div>
+                )}
+
+                <div className="border-t border-slate-800 pt-1.5 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-400 uppercase tracking-widest">
+                    TOTAL FINAL:
+                  </span>
+                  <span className="text-2xl font-black text-emerald-400 tabular-nums">
+                    $ {totalFinal.toLocaleString('es-AR')}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -508,12 +606,12 @@ export default function PedidoModal({
               {isSubmitting ? (
                 <>
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  <span>Procesando Transacción y Stock...</span>
+                  <span>Guardando y Generando PDF...</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="h-4 w-4" />
-                  <span>Confirmar Pedido ({tipo})</span>
+                  <span>Confirmar y Descargar Remito</span>
                 </>
               )}
             </button>

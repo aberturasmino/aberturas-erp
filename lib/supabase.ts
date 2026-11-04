@@ -54,6 +54,9 @@ export interface Pedido {
   cliente_id: number | string;
   tipo: TipoPedido;
   estado: EstadoPedido;
+  subtotal: number;
+  incluye_iva: boolean;
+  monto_iva: number;
   total_pedido: number;
   notas?: string;
   created_at?: string;
@@ -209,7 +212,10 @@ export const INITIAL_PEDIDOS: Pedido[] = [
     cliente_id: 1,
     tipo: 'VENTA',
     estado: 'COMPLETADO',
-    total_pedido: 342000,
+    subtotal: 342000,
+    incluye_iva: true,
+    monto_iva: 71820,
+    total_pedido: 413820,
     notas: 'Entrega en taller de carpintería San Martín. Remito salida #0891.',
     created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
     cliente: INITIAL_CLIENTES[0],
@@ -248,6 +254,9 @@ export const INITIAL_PEDIDOS: Pedido[] = [
     cliente_id: 4,
     tipo: 'COMPRA',
     estado: 'COMPLETADO',
+    subtotal: 985000,
+    incluye_iva: false,
+    monto_iva: 0,
     total_pedido: 985000,
     notas: 'Remito proveedor Aluar #49202. Reposición perfiles Módena y A30.',
     created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
@@ -551,6 +560,10 @@ export interface NuevoPedidoInput {
   cliente_id: number | string;
   tipo: TipoPedido;
   estado?: EstadoPedido;
+  subtotal?: number;
+  incluye_iva?: boolean;
+  monto_iva?: number;
+  total_pedido?: number;
   notas?: string;
   lineas: NuevaLineaPedido[];
 }
@@ -565,10 +578,13 @@ export async function getPedidos(): Promise<Pedido[]> {
           cliente_id,
           tipo,
           estado,
+          subtotal,
+          incluye_iva,
+          monto_iva,
           total_pedido,
           notas,
           created_at,
-          clientes:cliente_id (id, razon_social, cuit, condicion_iva, telefono, email),
+          clientes:cliente_id (id, razon_social, cuit, condicion_iva, telefono, email, direccion),
           pedidos_detalle (
             id,
             pedido_id,
@@ -583,25 +599,35 @@ export async function getPedidos(): Promise<Pedido[]> {
 
       if (error) throw error;
       if (data && data.length > 0) {
-        return data.map((p: any) => ({
-          id: p.id,
-          cliente_id: p.cliente_id,
-          tipo: p.tipo,
-          estado: p.estado,
-          total_pedido: Number(p.total_pedido),
-          notas: p.notas,
-          created_at: p.created_at,
-          cliente: p.clientes,
-          detalles: (p.pedidos_detalle || []).map((d: any) => ({
-            id: d.id,
-            pedido_id: d.pedido_id,
-            producto_id: d.producto_id,
-            cantidad: d.cantidad,
-            precio_unitario: Number(d.precio_unitario),
-            subtotal: Number(d.subtotal),
-            producto: d.productos,
-          })),
-        }));
+        return data.map((p: any) => {
+          const subtotalNum = Number(p.subtotal ?? p.total_pedido ?? 0);
+          const incluyeIvaBool = Boolean(p.incluye_iva);
+          const montoIvaNum = Number(p.monto_iva ?? (incluyeIvaBool ? subtotalNum * 0.21 : 0));
+          const totalNum = Number(p.total_pedido ?? (subtotalNum + montoIvaNum));
+
+          return {
+            id: p.id,
+            cliente_id: p.cliente_id,
+            tipo: p.tipo,
+            estado: p.estado,
+            subtotal: subtotalNum,
+            incluye_iva: incluyeIvaBool,
+            monto_iva: montoIvaNum,
+            total_pedido: totalNum,
+            notas: p.notas,
+            created_at: p.created_at,
+            cliente: p.clientes,
+            detalles: (p.pedidos_detalle || []).map((d: any) => ({
+              id: d.id,
+              pedido_id: d.pedido_id,
+              producto_id: d.producto_id,
+              cantidad: d.cantidad,
+              precio_unitario: Number(d.precio_unitario),
+              subtotal: Number(d.subtotal),
+              producto: d.productos,
+            })),
+          };
+        });
       }
     } catch (e) {
       console.warn('Error reading pedidos from Supabase, using local demo fallback', e);
@@ -613,27 +639,38 @@ export async function getPedidos(): Promise<Pedido[]> {
 
 /**
  * Transacción Completa de Pedidos:
- * 1. Inserta la cabecera del pedido
+ * 1. Inserta la cabecera del pedido (subtotal, incluye_iva, monto_iva, total_pedido)
  * 2. Inserta cada línea de pedidos_detalle
  * 3. Actualiza el stock en la tabla productos (SUMA en COMPRA, RESTA en VENTA)
  */
 export async function registrarPedidoTransaccional(input: NuevoPedidoInput): Promise<Pedido> {
-  const { cliente_id, tipo, estado = 'COMPLETADO', notas = '', lineas } = input;
+  const {
+    cliente_id,
+    tipo,
+    estado = 'COMPLETADO',
+    notas = '',
+    lineas,
+    incluye_iva = false,
+  } = input;
 
   if (!lineas || lineas.length === 0) {
     throw new Error('El pedido debe tener al menos una línea de producto.');
   }
 
-  // Calcular totales
+  // Calcular subtotales
   const lineasCalculadas = lineas.map((l) => ({
     ...l,
-    subtotal: l.cantidad * l.precio_unitario,
+    subtotal: Math.round(l.cantidad * l.precio_unitario * 100) / 100,
   }));
-  const totalPedido = lineasCalculadas.reduce((acc, curr) => acc + curr.subtotal, 0);
+  const subtotalCalculado = input.subtotal ?? lineasCalculadas.reduce((acc, curr) => acc + curr.subtotal, 0);
+  const montoIvaCalculado =
+    input.monto_iva ?? (incluye_iva ? Math.round(subtotalCalculado * 0.21 * 100) / 100 : 0);
+  const totalPedidoCalculado =
+    input.total_pedido ?? Math.round((subtotalCalculado + montoIvaCalculado) * 100) / 100;
 
   // 1. MODO SUPABASE REAL
   if (isSupabaseConfigured) {
-    // A. Insertar cabecera en pedidos
+    // A. Insertar cabecera en pedidos con desglose de IVA
     const { data: pedidoData, error: pedidoError } = await supabase
       .from('pedidos')
       .insert([
@@ -641,7 +678,10 @@ export async function registrarPedidoTransaccional(input: NuevoPedidoInput): Pro
           cliente_id,
           tipo,
           estado,
-          total_pedido: totalPedido,
+          subtotal: subtotalCalculado,
+          incluye_iva: Boolean(incluye_iva),
+          monto_iva: montoIvaCalculado,
+          total_pedido: totalPedidoCalculado,
           notas,
         },
       ])
@@ -693,15 +733,34 @@ export async function registrarPedidoTransaccional(input: NuevoPedidoInput): Pro
       }
     }
 
+    // Traer datos del cliente para el comprobante
+    const { data: clienteData } = await supabase
+      .from('clientes')
+      .select('*')
+      .eq('id', cliente_id)
+      .single();
+
     // Retornar pedido creado
     return {
       id: pedidoId,
       cliente_id,
       tipo,
       estado,
-      total_pedido: totalPedido,
+      subtotal: subtotalCalculado,
+      incluye_iva: Boolean(incluye_iva),
+      monto_iva: montoIvaCalculado,
+      total_pedido: totalPedidoCalculado,
       notas,
       created_at: pedidoData.created_at || new Date().toISOString(),
+      cliente: clienteData || undefined,
+      detalles: lineasCalculadas.map((l, i) => ({
+        id: i + 1,
+        pedido_id: pedidoId,
+        producto_id: l.producto_id,
+        cantidad: l.cantidad,
+        precio_unitario: l.precio_unitario,
+        subtotal: l.subtotal,
+      })),
     };
   }
 
@@ -748,7 +807,10 @@ export async function registrarPedidoTransaccional(input: NuevoPedidoInput): Pro
     cliente_id,
     tipo,
     estado,
-    total_pedido: totalPedido,
+    subtotal: subtotalCalculado,
+    incluye_iva: Boolean(incluye_iva),
+    monto_iva: montoIvaCalculado,
+    total_pedido: totalPedidoCalculado,
     notas,
     created_at: fecha,
     cliente: clienteEncontrado,

@@ -50,10 +50,27 @@ create table if not exists public.pedidos (
   cliente_id bigint not null references public.clientes(id) on delete restrict,
   tipo text not null check (tipo in ('COMPRA', 'VENTA')),
   estado text not null default 'COMPLETADO' check (estado in ('PENDIENTE', 'COMPLETADO', 'CANCELADO')),
+  subtotal numeric(14, 2) not null default 0.00,
+  incluye_iva boolean not null default false,
+  monto_iva numeric(14, 2) not null default 0.00,
   total_pedido numeric(14, 2) not null default 0.00,
   notas text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+-- Migración segura de columnas en pedidos
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'pedidos' and column_name = 'subtotal') then
+    alter table public.pedidos add column subtotal numeric(14, 2) not null default 0.00;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'pedidos' and column_name = 'incluye_iva') then
+    alter table public.pedidos add column incluye_iva boolean not null default false;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'pedidos' and column_name = 'monto_iva') then
+    alter table public.pedidos add column monto_iva numeric(14, 2) not null default 0.00;
+  end if;
+end $$;
 
 create index if not exists idx_pedidos_cliente on public.pedidos(cliente_id);
 create index if not exists idx_pedidos_tipo on public.pedidos(tipo);

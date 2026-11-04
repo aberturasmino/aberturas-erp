@@ -17,7 +17,8 @@ import {
   X,
   Package,
   Layers,
-  ArrowRight
+  ArrowRight,
+  FileDown
 } from 'lucide-react';
 import {
   Pedido,
@@ -28,6 +29,7 @@ import {
   registrarPedidoTransaccional
 } from '../../lib/supabase';
 import PedidoModal from '../../components/PedidoModal';
+import { generateRemitoPDF } from '../../utils/generatePDF';
 
 export default function PedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
@@ -77,6 +79,32 @@ export default function PedidosPage() {
     const pedidoCreado = await registrarPedidoTransaccional(input);
     setPedidos((prev) => [pedidoCreado, ...prev]);
     showToast(`Pedido #${pedidoCreado.id} (${pedidoCreado.tipo}) registrado y stock actualizado.`);
+    return pedidoCreado;
+  };
+
+  const handleDescargarPDF = (pedido: Pedido) => {
+    const lineasParaPdf = (pedido.detalles || []).map((d) => ({
+      codigo: d.producto?.codigo || `ID #${d.producto_id}`,
+      descripcion: d.producto?.descripcion || 'Perfil de aluminio normalizado',
+      cantidad: d.cantidad,
+      precio_unitario: d.precio_unitario,
+      subtotal: d.subtotal,
+    }));
+
+    generateRemitoPDF({
+      id: pedido.id,
+      tipo: pedido.tipo,
+      estado: pedido.estado,
+      created_at: pedido.created_at,
+      notas: pedido.notas,
+      subtotal: pedido.subtotal || pedido.total_pedido,
+      incluye_iva: pedido.incluye_iva ?? false,
+      monto_iva: pedido.monto_iva ?? 0,
+      total_pedido: pedido.total_pedido,
+      cliente: pedido.cliente,
+      detalles: lineasParaPdf,
+    });
+    showToast(`Descargando Remito #${pedido.id} en PDF...`);
   };
 
   // Filtrado reactivo
@@ -395,15 +423,26 @@ export default function PedidosPage() {
 
                         {/* 7. ACCIONES */}
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => setPedidoDetalleSeleccionado(pedido)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs transition-colors border border-slate-700"
-                            title="Ver detalle del pedido"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            <span>Ver</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleDescargarPDF(pedido)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white text-xs transition-colors border border-blue-500/40"
+                              title="Descargar Remito en PDF"
+                            >
+                              <FileDown className="h-3.5 w-3.5" />
+                              <span>PDF</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPedidoDetalleSeleccionado(pedido)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs transition-colors border border-slate-700"
+                              title="Ver detalle del pedido"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              <span>Ver</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -543,18 +582,42 @@ export default function PedidosPage() {
                 </div>
               </div>
 
-              {/* Total final */}
-              <div className="flex items-center justify-between p-4 rounded-lg border border-slate-800 bg-slate-950 font-mono">
-                <span className="text-xs text-slate-400 uppercase tracking-wider">
-                  Total Liquidado
-                </span>
-                <span className="text-xl font-black text-emerald-400">
-                  $ {pedidoDetalleSeleccionado.total_pedido.toLocaleString('es-AR')}
-                </span>
+              {/* Resumen financiero en modal de detalle */}
+              <div className="p-4 rounded-lg border border-slate-800 bg-slate-950 font-mono space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>SUBTOTAL:</span>
+                  <span className="text-slate-200 font-bold">
+                    $ {(pedidoDetalleSeleccionado.subtotal || pedidoDetalleSeleccionado.total_pedido).toLocaleString('es-AR')}
+                  </span>
+                </div>
+                {pedidoDetalleSeleccionado.incluye_iva && (
+                  <div className="flex items-center justify-between text-xs text-blue-400">
+                    <span>IVA (21%):</span>
+                    <span className="font-bold">
+                      +$ {(pedidoDetalleSeleccionado.monto_iva || 0).toLocaleString('es-AR')}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-1.5 border-t border-slate-800">
+                  <span className="text-xs text-slate-400 uppercase tracking-wider font-sans font-bold">
+                    Total Liquidado
+                  </span>
+                  <span className="text-xl font-black text-emerald-400">
+                    $ {pedidoDetalleSeleccionado.total_pedido.toLocaleString('es-AR')}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end p-4 border-t border-slate-800 bg-slate-950/60">
+            <div className="flex items-center justify-between p-4 border-t border-slate-800 bg-slate-950/60">
+              <button
+                type="button"
+                onClick={() => handleDescargarPDF(pedidoDetalleSeleccionado)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-xs font-bold text-white hover:bg-blue-500 shadow-md shadow-blue-900/30 transition-all"
+              >
+                <FileDown className="h-4 w-4" />
+                <span>Descargar Remito PDF</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setPedidoDetalleSeleccionado(null)}
