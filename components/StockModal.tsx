@@ -5,20 +5,19 @@ import {
   X,
   Plus,
   Minus,
-  ArrowRight,
   Package,
   AlertTriangle,
   CheckCircle2,
-  DollarSign
+  Scale
 } from 'lucide-react';
-import { Producto } from '../lib/supabase';
+import { Producto, roundKg } from '../lib/supabase';
 
 interface StockModalProps {
   isOpen: boolean;
   producto: Producto | null;
   onClose: () => void;
   onConfirm: (
-    productoId: number | string,
+    productoId: string,
     nuevoStock: number,
     cantidad: number,
     operacion: 'sumar' | 'restar',
@@ -33,7 +32,7 @@ export default function StockModal({
   onConfirm,
 }: StockModalProps) {
   const [operacion, setOperacion] = useState<'sumar' | 'restar'>('sumar');
-  const [cantidad, setCantidad] = useState<number>(1);
+  const [cantidadInput, setCantidadInput] = useState<string>('1');
   const [precioVenta, setPrecioVenta] = useState<number | ''>(0);
   const [motivo, setMotivo] = useState<string>('Remito de proveedor');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -42,7 +41,7 @@ export default function StockModal({
   useEffect(() => {
     if (isOpen && producto) {
       setOperacion('sumar');
-      setCantidad(1);
+      setCantidadInput(producto.unidad_medida === 'KG' ? '10.00' : '1');
       setPrecioVenta(producto.precio_venta ?? 0);
       setMotivo('Remito de proveedor');
       setErrorMessage(null);
@@ -52,26 +51,58 @@ export default function StockModal({
 
   if (!isOpen || !producto) return null;
 
-  const stockActual = producto.cantidad;
+  const esPorPeso = producto.unidad_medida === 'KG';
+  const unidadLabel = esPorPeso ? 'kg' : 'u.';
+  const umbralCritico = esPorPeso ? 20 : 5;
+
+  const formatCantidad = (val: number) =>
+    esPorPeso
+      ? val.toLocaleString('es-AR', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 3,
+        })
+      : String(val);
+
+  const cantidadNumerica = esPorPeso
+    ? Math.max(0, roundKg(parseFloat(cantidadInput) || 0))
+    : Math.max(0, Math.round(parseFloat(cantidadInput) || 0));
+
+  const stockActual = Number(producto.cantidad ?? 0);
   const nuevoStockCalculado =
-    operacion === 'sumar' ? stockActual + cantidad : stockActual - cantidad;
+    operacion === 'sumar'
+      ? roundKg(stockActual + cantidadNumerica)
+      : roundKg(stockActual - cantidadNumerica);
 
   const esStockNegativo = nuevoStockCalculado < 0;
 
-  const handleCantidadChange = (val: number) => {
-    const parsed = isNaN(val) ? 0 : Math.max(0, val);
-    setCantidad(parsed);
-    if (operacion === 'restar' && parsed > stockActual) {
-      setErrorMessage('Atención: La salida supera la cantidad disponible en depósito.');
+  const handleCantidadStrChange = (raw: string) => {
+    setCantidadInput(raw);
+    const parsed = parseFloat(raw);
+    const val = isNaN(parsed) ? 0 : Math.max(0, parsed);
+    if (operacion === 'restar' && val > stockActual) {
+      setErrorMessage(
+        `Atención: La salida supera el stock disponible (${formatCantidad(stockActual)} ${unidadLabel}).`
+      );
     } else {
       setErrorMessage(null);
     }
   };
 
+  const handleStepCantidad = (delta: number) => {
+    const next = esPorPeso
+      ? Math.max(0.5, roundKg(cantidadNumerica + delta))
+      : Math.max(1, Math.round(cantidadNumerica + delta));
+    handleCantidadStrChange(String(next));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cantidad <= 0) {
-      setErrorMessage('Por favor ingresa una cantidad mayor a 0.');
+    if (cantidadNumerica <= 0) {
+      setErrorMessage(
+        esPorPeso
+          ? 'Por favor ingresa un peso mayor a 0 kg.'
+          : 'Por favor ingresa una cantidad mayor a 0.'
+      );
       return;
     }
 
@@ -89,7 +120,13 @@ export default function StockModal({
     try {
       setIsSubmitting(true);
       setErrorMessage(null);
-      await onConfirm(producto.id, nuevoStockCalculado, cantidad, operacion, valorPrecio);
+      await onConfirm(
+        producto.id,
+        nuevoStockCalculado,
+        cantidadNumerica,
+        operacion,
+        valorPrecio
+      );
       onClose();
     } catch (err: any) {
       setErrorMessage(err?.message || 'Error al actualizar el stock en Supabase.');
@@ -97,6 +134,8 @@ export default function StockModal({
       setIsSubmitting(false);
     }
   };
+
+  const presets = esPorPeso ? [0.5, 5, 10, 25, 50, 150.5] : [1, 5, 10, 20, 50];
 
   return (
     <div
@@ -108,18 +147,37 @@ export default function StockModal({
         if (e.target === e.currentTarget && !isSubmitting) onClose();
       }}
     >
-      {/* Contenedor Modal: 95% en celulares, max-w-lg en tablets y notebooks */}
       <div className="relative w-[95%] sm:w-full max-w-lg overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl text-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150">
-        {/* Encabezado Industrial con padding responsive */}
+        {/* Encabezado Industrial */}
         <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/80 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30">
-              <Package className="h-5 w-5" />
+            <div
+              className={`flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg border ${
+                esPorPeso
+                  ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                  : 'bg-blue-600/20 text-blue-400 border-blue-500/30'
+              }`}
+            >
+              {esPorPeso ? <Scale className="h-5 w-5" /> : <Package className="h-5 w-5" />}
             </div>
             <div className="min-w-0">
-              <h2 id="modal-stock-title" className="text-sm sm:text-base font-bold tracking-tight text-white truncate">
-                Ajuste de Stock y Precio
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2
+                  id="modal-stock-title"
+                  className="text-sm sm:text-base font-bold tracking-tight text-white truncate"
+                >
+                  Ajuste de Stock y Precio
+                </h2>
+                <span
+                  className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                    esPorPeso
+                      ? 'bg-amber-950/70 text-amber-300 border-amber-700/60'
+                      : 'bg-blue-950/70 text-blue-300 border-blue-700/60'
+                  }`}
+                >
+                  {producto.unidad_medida}
+                </span>
+              </div>
               <span className="font-mono text-[11px] sm:text-xs font-semibold text-blue-400 truncate block">
                 {producto.codigo}
               </span>
@@ -135,19 +193,18 @@ export default function StockModal({
           </button>
         </div>
 
-        {/* Formulario con paddings y espaciados mobile-first */}
+        {/* Formulario */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 max-h-[82vh] overflow-y-auto">
-          {/* Ficha técnica del perfil */}
           <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 space-y-1">
             <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">
-              Descripción del Perfil
+              Descripción del Producto
             </span>
             <p className="text-xs font-semibold text-slate-200 leading-snug">
               {producto.descripcion}
             </p>
           </div>
 
-          {/* Grilla dinámica: Tipo de Movimiento (1 columna en móvil muy angosto, 2 en pantallas medianas) */}
+          {/* Tipo de Movimiento */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
               Tipo de Movimiento
@@ -174,8 +231,10 @@ export default function StockModal({
                 onClick={() => {
                   setOperacion('restar');
                   setMotivo('Consumo de taller / Despacho');
-                  if (cantidad > stockActual) {
-                    setErrorMessage('Atención: La salida supera la cantidad disponible.');
+                  if (cantidadNumerica > stockActual) {
+                    setErrorMessage(
+                      `Atención: La salida supera la cantidad disponible (${formatCantidad(stockActual)} ${unidadLabel}).`
+                    );
                   }
                 }}
                 className={`flex items-center justify-center gap-2 py-2.5 px-3 min-h-[44px] rounded-md text-xs font-bold transition-all active:scale-[0.98] ${
@@ -190,73 +249,88 @@ export default function StockModal({
             </div>
           </div>
 
-          {/* Selector de Cantidad con botones táctiles de 44px */}
+          {/* Selector de Cantidad (con decimales para KG) */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="input-cantidad" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Cantidad a {operacion === 'sumar' ? 'Ingresar' : 'Retirar'}
+              <label
+                htmlFor="input-cantidad"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-400"
+              >
+                {esPorPeso ? 'Peso (kg)' : 'Cantidad'} a{' '}
+                {operacion === 'sumar' ? 'Ingresar' : 'Retirar'}
               </label>
               <span className="text-xs text-slate-400 font-mono">
-                Stock actual: <strong className="text-slate-200">{stockActual} u.</strong>
+                Stock actual:{' '}
+                <strong className="text-slate-200">
+                  {formatCantidad(stockActual)} {unidadLabel}
+                </strong>
               </span>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
               <button
                 type="button"
-                onClick={() => handleCantidadChange(Math.max(1, cantidad - 1))}
+                onClick={() => handleStepCantidad(-1)}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 active:bg-slate-600 transition-colors"
-                aria-label="Restar una unidad"
+                aria-label={`Restar 1 ${unidadLabel}`}
               >
                 <Minus className="h-4 w-4" />
               </button>
 
-              <input
-                id="input-cantidad"
-                type="number"
-                min="1"
-                value={cantidad === 0 ? '' : cantidad}
-                onChange={(e) => handleCantidadChange(parseInt(e.target.value) || 0)}
-                className="w-full min-h-[44px] text-center rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xl font-bold text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 tabular-nums"
-                required
-              />
+              <div className="relative flex-1">
+                <input
+                  id="input-cantidad"
+                  type="number"
+                  min={esPorPeso ? '0.01' : '1'}
+                  step={esPorPeso ? '0.01' : '1'}
+                  value={cantidadInput}
+                  onChange={(e) => handleCantidadStrChange(e.target.value)}
+                  className="w-full min-h-[44px] text-center rounded-lg border border-slate-700 bg-slate-950 px-3 pr-10 py-2 font-mono text-xl font-bold text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 tabular-nums"
+                  required
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-400">
+                  {unidadLabel}
+                </span>
+              </div>
 
               <button
                 type="button"
-                onClick={() => handleCantidadChange(cantidad + 1)}
+                onClick={() => handleStepCantidad(1)}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 active:bg-slate-600 transition-colors"
-                aria-label="Sumar una unidad"
+                aria-label={`Sumar 1 ${unidadLabel}`}
               >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Accesos rápidos con touch targets optimizados */}
+            {/* Accesos rápidos */}
             <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
               <span className="text-[11px] text-slate-500 font-medium mr-1">Rápidos:</span>
-              {[1, 5, 10, 20, 50].map((preset) => (
+              {presets.map((preset) => (
                 <button
                   key={preset}
                   type="button"
-                  onClick={() => handleCantidadChange(preset)}
+                  onClick={() => handleCantidadStrChange(String(preset))}
                   className={`min-h-[36px] px-3 py-1 text-xs font-mono font-bold rounded-lg border transition-colors ${
-                    cantidad === preset
+                    cantidadNumerica === preset
                       ? 'border-blue-500 bg-blue-500/20 text-blue-300'
                       : 'border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                   }`}
                 >
-                  +{preset}
+                  +{preset} {unidadLabel}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Grilla dinámica: Precio Venta y Motivo (1 columna en móvil, 2 en tablet/desktop) */}
+          {/* Precio Venta y Motivo */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {/* Campo Precio de Venta */}
             <div>
-              <label htmlFor="input-precio-venta" className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                Precio Venta (ARS)
+              <label
+                htmlFor="input-precio-venta"
+                className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1"
+              >
+                {esPorPeso ? 'Precio Ref. / kg (ARS)' : 'Precio Venta (ARS)'}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-mono font-bold text-slate-500">
@@ -268,16 +342,22 @@ export default function StockModal({
                   min="0"
                   step="0.01"
                   value={precioVenta === '' ? '' : precioVenta}
-                  onChange={(e) => setPrecioVenta(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                  onChange={(e) =>
+                    setPrecioVenta(
+                      e.target.value === '' ? '' : parseFloat(e.target.value)
+                    )
+                  }
                   placeholder="0.00"
                   className="w-full min-h-[44px] rounded-lg border border-slate-700 bg-slate-950 pl-8 pr-3 py-2 font-mono text-sm font-bold text-emerald-400 placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
 
-            {/* Motivo o Remito */}
             <div>
-              <label htmlFor="input-motivo" className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+              <label
+                htmlFor="input-motivo"
+                className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1"
+              >
                 Remito / Motivo
               </label>
               <input
@@ -291,10 +371,10 @@ export default function StockModal({
             </div>
           </div>
 
-          {/* Panel de Cálculo de Balance (adaptado a pantallas angostas) */}
+          {/* Panel de Balance */}
           <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 sm:p-3.5">
             <div className="flex items-center justify-between text-[11px] text-slate-400 mb-2">
-              <span>Balance de Perfiles</span>
+              <span>{esPorPeso ? 'Balance de Aluminio (kg)' : 'Balance de Perfiles'}</span>
               <span className="font-mono text-blue-400 font-bold uppercase">
                 {operacion === 'sumar' ? '+ Entrada' : '- Salida'}
               </span>
@@ -304,7 +384,7 @@ export default function StockModal({
               <div>
                 <span className="text-[10px] text-slate-500 block uppercase">Actual</span>
                 <span className="text-sm sm:text-base font-bold text-slate-300 tabular-nums">
-                  {stockActual} u.
+                  {formatCantidad(stockActual)} {unidadLabel}
                 </span>
               </div>
 
@@ -315,7 +395,10 @@ export default function StockModal({
                     operacion === 'sumar' ? 'text-blue-400' : 'text-amber-400'
                   }`}
                 >
-                  {operacion === 'sumar' ? `+${cantidad}` : `-${cantidad}`}
+                  {operacion === 'sumar'
+                    ? `+${formatCantidad(cantidadNumerica)}`
+                    : `-${formatCantidad(cantidadNumerica)}`}{' '}
+                  {unidadLabel}
                 </span>
               </div>
 
@@ -325,12 +408,12 @@ export default function StockModal({
                   className={`text-base sm:text-lg font-black tabular-nums ${
                     esStockNegativo
                       ? 'text-red-400'
-                      : nuevoStockCalculado <= 5
+                      : nuevoStockCalculado <= umbralCritico
                       ? 'text-amber-400'
                       : 'text-emerald-400'
                   }`}
                 >
-                  {nuevoStockCalculado} u.
+                  {formatCantidad(nuevoStockCalculado)} {unidadLabel}
                 </span>
               </div>
             </div>
@@ -343,7 +426,7 @@ export default function StockModal({
             </div>
           )}
 
-          {/* Botones de Acción con altura mínima de 44px */}
+          {/* Botones de Acción */}
           <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2.5 sm:gap-3 pt-2.5 border-t border-slate-800">
             <button
               type="button"
@@ -355,9 +438,9 @@ export default function StockModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || esStockNegativo || cantidad <= 0}
+              disabled={isSubmitting || esStockNegativo || cantidadNumerica <= 0}
               className={`w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 rounded-lg px-6 py-2.5 text-xs font-bold text-white shadow-lg transition-all active:scale-[0.98] ${
-                isSubmitting || esStockNegativo || cantidad <= 0
+                isSubmitting || esStockNegativo || cantidadNumerica <= 0
                   ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
                   : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/40'
               }`}
@@ -370,7 +453,9 @@ export default function StockModal({
               ) : (
                 <>
                   <CheckCircle2 className="h-4 w-4" />
-                  <span>Confirmar ({nuevoStockCalculado} u.)</span>
+                  <span>
+                    Confirmar ({formatCantidad(nuevoStockCalculado)} {unidadLabel})
+                  </span>
                 </>
               )}
             </button>

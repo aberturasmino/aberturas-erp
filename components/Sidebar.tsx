@@ -11,7 +11,8 @@ import {
   Menu,
   X,
   Building2,
-  ExternalLink
+  ExternalLink,
+  Calculator
 } from 'lucide-react';
 import { getSessionUser, logoutUser, UserSession } from '../lib/supabase';
 
@@ -91,6 +92,12 @@ export default function Sidebar({ currentPath, onNavigate, onLogout }: SidebarPr
       path: '/clientes',
       icon: Users,
       badge: 'Maestro',
+    },
+    {
+      name: 'Cotizador',
+      path: '/cotizador',
+      icon: Calculator,
+      badge: 'Aluminio',
     },
     {
       name: 'Pedidos',
@@ -243,6 +250,8 @@ export default function Sidebar({ currentPath, onNavigate, onLogout }: SidebarPr
         <span className="text-[10px] font-mono text-blue-400 font-bold px-2 py-1 rounded bg-blue-950/80 border border-blue-800/80 uppercase">
           {activePath === '/clientes'
             ? 'Clientes'
+            : activePath === '/cotizador'
+            ? 'Cotizador'
             : activePath === '/pedidos'
             ? 'Pedidos'
             : 'Inventario'}

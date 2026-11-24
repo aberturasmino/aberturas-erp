@@ -9,7 +9,7 @@ interface DeleteProductModalProps {
   producto: Producto | null;
   productosDisponibles: Producto[];
   onClose: () => void;
-  onConfirmDelete: (productoId: number | string) => Promise<void>;
+  onConfirmDelete: (productoId: string) => Promise<void>;
 }
 
 export default function DeleteProductModal({
@@ -19,7 +19,7 @@ export default function DeleteProductModal({
   onClose,
   onConfirmDelete,
 }: DeleteProductModalProps) {
-  const [selectedId, setSelectedId] = useState<string | number>('');
+  const [selectedId, setSelectedId] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,7 +101,8 @@ export default function DeleteProductModal({
               >
                 {productosDisponibles.map((p) => (
                   <option key={p.id} value={p.id} className="bg-slate-900">
-                    {p.codigo} - {p.descripcion} ({p.cantidad} u.)
+                    {p.codigo} - {p.descripcion} ({p.cantidad}{' '}
+                    {p.unidad_medida === 'KG' ? 'kg' : 'u.'})
                   </option>
                 ))}
               </select>
@@ -115,7 +116,11 @@ export default function DeleteProductModal({
                   {currentProducto.codigo}
                 </span>
                 <span className="text-[11px] text-slate-400">
-                  Cantidad: <strong className="text-slate-200">{currentProducto.cantidad} u.</strong>
+                  Cantidad:{' '}
+                  <strong className="text-slate-200">
+                    {currentProducto.cantidad}{' '}
+                    {currentProducto.unidad_medida === 'KG' ? 'kg' : 'u.'}
+                  </strong>
                 </span>
               </div>
               <p className="text-xs font-medium text-slate-200 leading-snug">

@@ -93,13 +93,25 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
       try {
         const { data, error } = await supabase
           .from('productos')
-          .select('id, codigo, descripcion, cantidad, precio_venta')
-          .order('id', { ascending: false });
+          .select('id, codigo, descripcion, cantidad, unidad_medida, precio_venta')
+          .order('codigo', { ascending: true });
 
         if (error) throw error;
 
         if (data && data.length > 0) {
-          setProductos(data);
+          setProductos(
+            data.map((p: any) => ({
+              id: String(p.id),
+              codigo: p.codigo,
+              descripcion: p.descripcion,
+              cantidad: Number(p.cantidad ?? 0),
+              unidad_medida: p.unidad_medida === 'KG' ? 'KG' : 'UNIDADES',
+              precio_venta:
+                p.precio_venta !== null && p.precio_venta !== undefined
+                  ? Number(p.precio_venta)
+                  : 0,
+            }))
+          );
           setIsUsingDemo(false);
         } else {
           setProductos(INITIAL_PRODUCTOS);
@@ -135,12 +147,16 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
   };
 
   const handleActualizarStock = async (
-    productoId: number | string,
+    productoId: string,
     nuevoStock: number,
     cantidadAjustada: number,
     operacion: 'sumar' | 'restar',
     nuevoPrecioVenta?: number
   ) => {
+    const prodTarget = productos.find((p) => String(p.id) === String(productoId));
+    const esPorPeso = prodTarget?.unidad_medida === 'KG';
+    const sufijo = esPorPeso ? 'kg' : 'u.';
+
     const payload: Partial<Producto> = {
       cantidad: nuevoStock,
     };
@@ -159,7 +175,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
 
     setProductos((prev) => {
       const updated = prev.map((p) =>
-        p.id === productoId ? { ...p, ...payload } : p
+        String(p.id) === String(productoId) ? { ...p, ...payload } : p
       );
       if (isUsingDemo) {
         saveLocalDemoStock(updated);
@@ -168,22 +184,28 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
     });
 
     const accionTexto = operacion === 'sumar' ? 'ingresaron' : 'retiraron';
+    const cantFormateada = esPorPeso
+      ? cantidadAjustada.toLocaleString('es-AR', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 3,
+        })
+      : cantidadAjustada;
     showToast(
-      `Se ${accionTexto} ${cantidadAjustada} u. ${
+      `Se ${accionTexto} ${cantFormateada} ${sufijo} ${
         nuevoPrecioVenta ? `(Precio: $ ${nuevoPrecioVenta.toLocaleString('es-AR')})` : ''
       }`
     );
   };
 
-  // Creación de perfil nuevo (codigo, descripcion, cantidad, precio_venta)
+  // Creación de perfil nuevo (codigo, descripcion, cantidad, unidad_medida, precio_venta)
   const handleCrearProducto = async (nuevo: Omit<Producto, 'id'>) => {
     const creado = await createProducto(nuevo);
     setProductos((prev) => [creado, ...prev]);
-    showToast(`Perfil ${creado.codigo} agregado al inventario`);
+    showToast(`Producto ${creado.codigo} (${creado.unidad_medida}) agregado al inventario`);
   };
 
   // Eliminación de perfil
-  const handleConfirmarEliminacion = async (productoId: number | string) => {
+  const handleConfirmarEliminacion = async (productoId: string) => {
     await deleteProducto(productoId);
     setProductos((prev) => prev.filter((p) => p.id !== productoId));
     showToast('Perfil eliminado correctamente');
@@ -201,6 +223,9 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
     }, 4000);
   };
 
+  const esProductoCritico = (p: Producto) =>
+    p.unidad_medida === 'KG' ? p.cantidad <= 20 : p.cantidad <= 5;
+
   // Filtrado reactivo por CÓDIGO o DESCRIPCIÓN
   const filteredProductos = useMemo(() => {
     return productos.filter((p) => {
@@ -208,7 +233,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
         p.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesBajoStock = !soloStockBajo || p.cantidad <= 5;
+      const matchesBajoStock = !soloStockBajo || esProductoCritico(p);
 
       return matchesSearch && matchesBajoStock;
     });
@@ -227,8 +252,13 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
 
   // Métricas de depósito
   const totalCodigos = productos.length;
-  const totalUnidades = productos.reduce((acc, curr) => acc + curr.cantidad, 0);
-  const totalStockBajo = productos.filter((p) => p.cantidad <= 5).length;
+  const totalUnidades = productos
+    .filter((p) => p.unidad_medida !== 'KG')
+    .reduce((acc, curr) => acc + curr.cantidad, 0);
+  const totalKilos = productos
+    .filter((p) => p.unidad_medida === 'KG')
+    .reduce((acc, curr) => acc + curr.cantidad, 0);
+  const totalStockBajo = productos.filter((p) => esProductoCritico(p)).length;
   const valorizacionInventario = productos.reduce(
     (acc, curr) => acc + curr.cantidad * (curr.precio_venta || 0),
     0
@@ -324,13 +354,18 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
 
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
             <div className="flex items-center justify-between text-slate-400 text-xs mb-1.5">
-              <span className="font-semibold uppercase tracking-wider">Unidades Totales</span>
+              <span className="font-semibold uppercase tracking-wider">Stock en Depósito</span>
               <Boxes className="h-4 w-4 text-blue-400" />
             </div>
             <div className="text-2xl font-bold font-mono text-white tabular-nums">
-              {totalUnidades} <span className="text-sm font-normal text-slate-400">productos</span>
+              {totalUnidades} <span className="text-sm font-normal text-slate-400">u.</span>
+              <span className="mx-1.5 text-slate-600">·</span>
+              <span className="text-amber-300">
+                {totalKilos.toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+              </span>{' '}
+              <span className="text-sm font-normal text-amber-400/80">kg</span>
             </div>
-            <span className="text-[11px] text-slate-500">En depósito central</span>
+            <span className="text-[11px] text-slate-500">Perfiles por unidad y aluminio por peso</span>
           </div>
 
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
@@ -341,7 +376,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
             <div className={`text-2xl font-bold font-mono tabular-nums ${totalStockBajo > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
               {totalStockBajo}
             </div>
-            <span className="text-[11px] text-slate-500">Perfiles con ≤ 5 unidades</span>
+            <span className="text-[11px] text-slate-500">≤ 5 u. o ≤ 20 kg disponibles</span>
           </div>
 
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
@@ -388,7 +423,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
               }`}
             >
               <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-              <span>Solo Crítico (≤ 5 u.)</span>
+              <span>Solo Crítico (≤ 5 u. / ≤ 20 kg)</span>
             </button>
           </div>
         </section>
@@ -468,8 +503,17 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                   </tr>
                 ) : (
                   paginatedProductos.map((prod) => {
-                    const esCritico = prod.cantidad <= 5;
+                    const esPorPeso = prod.unidad_medida === 'KG';
+                    const sufijoUnidad = esPorPeso ? 'kg' : 'u.';
+                    const esCritico = esProductoCritico(prod);
                     const precio = prod.precio_venta ?? 0;
+                    const stockFormateado = esPorPeso
+                      ? Number(prod.cantidad).toLocaleString('es-AR', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 2,
+                        })
+                      : prod.cantidad;
+
                     return (
                       <tr
                         key={prod.id}
@@ -477,7 +521,14 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                       >
                         {/* 1. CÓDIGO */}
                         <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 font-mono font-bold text-blue-400 whitespace-nowrap">
-                          {prod.codigo}
+                          <div className="flex items-center gap-1.5">
+                            <span>{prod.codigo}</span>
+                            {esPorPeso && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-700/60">
+                                KG
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* 2. DESCRIPCIÓN */}
@@ -492,13 +543,21 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                               className={`text-xs sm:text-sm font-bold px-2 py-0.5 rounded ${
                                 esCritico
                                   ? 'bg-amber-950 text-amber-400 border border-amber-800 font-extrabold'
+                                  : esPorPeso
+                                  ? 'text-amber-300 bg-slate-950 border border-amber-800/50'
                                   : 'text-slate-100 bg-slate-950 border border-slate-800'
                               }`}
                             >
-                              {prod.cantidad} u.
+                              {stockFormateado} {sufijoUnidad}
                             </span>
                             {esCritico && (
-                              <span title="Stock bajo (reponer remito)">
+                              <span
+                                title={
+                                  esPorPeso
+                                    ? 'Stock bajo en kg (reponer remito)'
+                                    : 'Stock bajo en unidades (reponer remito)'
+                                }
+                              >
                                 <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
                               </span>
                             )}
@@ -508,7 +567,7 @@ export default function ERPPage({ onLogout, currentUser }: ERPPageProps) {
                         {/* 4. PRECIO VENTA */}
                         <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-right whitespace-nowrap font-mono font-bold text-emerald-400 tabular-nums">
                           {precio > 0 ? (
-                            `$ ${precio.toLocaleString('es-AR')}`
+                            `$ ${precio.toLocaleString('es-AR')}${esPorPeso ? '/kg' : ''}`
                           ) : (
                             <span className="text-slate-500 font-normal text-[11px]">A cotizar</span>
                           )}

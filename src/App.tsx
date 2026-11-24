@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import ERPPage from '../app/page';
 import ClientesPage from '../app/clientes/page';
 import PedidosPage from '../app/pedidos/page';
+import CotizadorPage from '../app/cotizador/page';
 import LoginPage from '../app/login/page';
 import Loading from '../app/loading';
 import Sidebar from '../components/Sidebar';
@@ -113,6 +114,8 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
         {currentPath === '/clientes' ? (
           <ClientesPage />
+        ) : currentPath === '/cotizador' ? (
+          <CotizadorPage />
         ) : currentPath === '/pedidos' ? (
           <PedidosPage />
         ) : (

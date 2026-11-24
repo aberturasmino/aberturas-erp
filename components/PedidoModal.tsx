@@ -38,7 +38,7 @@ interface PedidoModalProps {
 
 interface LineaFormState {
   id: string; // ID temporal para el formulario
-  producto_id: number | string;
+  producto_id: string;
   cantidad: number;
   precio_unitario: number;
 }
@@ -126,7 +126,7 @@ export default function PedidoModal({
     setLineas((prev) => prev.filter((l) => l.id !== id));
   };
 
-  const handleProductoChange = (lineaId: string, newProductoId: number | string) => {
+  const handleProductoChange = (lineaId: string, newProductoId: string) => {
     const prodSeleccionado = productos.find((p) => String(p.id) === String(newProductoId));
     setLineas((prev) =>
       prev.map((l) => {
@@ -401,7 +401,8 @@ export default function PedidoModal({
                         >
                           {productos.map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.codigo} - {p.descripcion} (Stock: {p.cantidad} u.)
+                              {p.codigo} - {p.descripcion} (Stock: {p.cantidad}{' '}
+                              {p.unidad_medida === 'KG' ? 'kg' : 'u.'})
                             </option>
                           ))}
                         </select>

@@ -18,7 +18,9 @@ import {
   Package,
   Layers,
   ArrowRight,
-  FileDown
+  FileDown,
+  FileCheck2,
+  Loader2
 } from 'lucide-react';
 import {
   Pedido,
@@ -26,10 +28,11 @@ import {
   EstadoPedido,
   NuevoPedidoInput,
   getPedidos,
-  registrarPedidoTransaccional
+  registrarPedidoTransaccional,
+  convertirPresupuestoARemito
 } from '../../lib/supabase';
 import PedidoModal from '../../components/PedidoModal';
-import { generateRemitoPDF } from '../../utils/generatePDF';
+import { generateRemitoPDF, TipoDocumentoPDF } from '../../utils/generatePDF';
 
 export default function PedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
@@ -40,9 +43,10 @@ export default function PedidosPage() {
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Modales
+  // Modales y conversión
   const [modalNuevoOpen, setModalNuevoOpen] = useState<boolean>(false);
   const [pedidoDetalleSeleccionado, setPedidoDetalleSeleccionado] = useState<Pedido | null>(null);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
 
   useEffect(() => {
     cargarPedidos();
@@ -82,29 +86,65 @@ export default function PedidosPage() {
     return pedidoCreado;
   };
 
-  const handleDescargarPDF = (pedido: Pedido) => {
+  const handleDescargarPDF = (pedido: Pedido, forceTipoDoc?: TipoDocumentoPDF) => {
+    const tipoDoc: TipoDocumentoPDF =
+      forceTipoDoc || (pedido.estado === 'PRESUPUESTO' ? 'PRESUPUESTO' : 'REMITO');
+
     const lineasParaPdf = (pedido.detalles || []).map((d) => ({
-      codigo: d.producto?.codigo || `ID #${d.producto_id}`,
-      descripcion: d.producto?.descripcion || 'Perfil de aluminio normalizado',
+      codigo: d.producto?.codigo || (d.material ? 'COTIZ.' : `ID #${d.producto_id || 'S/C'}`),
+      material: d.material,
+      descripcion:
+        d.producto?.descripcion || d.material || 'Perfil de aluminio normalizado',
       cantidad: d.cantidad,
+      peso_kg: d.peso_kg,
       precio_unitario: d.precio_unitario,
       subtotal: d.subtotal,
     }));
 
-    generateRemitoPDF({
-      id: pedido.id,
-      tipo: pedido.tipo,
-      estado: pedido.estado,
-      created_at: pedido.created_at,
-      notas: pedido.notas,
-      subtotal: pedido.subtotal || pedido.total_pedido,
-      incluye_iva: pedido.incluye_iva ?? false,
-      monto_iva: pedido.monto_iva ?? 0,
-      total_pedido: pedido.total_pedido,
-      cliente: pedido.cliente,
-      detalles: lineasParaPdf,
-    });
-    showToast(`Descargando Remito #${pedido.id} en PDF...`);
+    generateRemitoPDF(
+      {
+        id: pedido.id,
+        tipo: pedido.tipo,
+        estado: pedido.estado,
+        tipoDocumento: tipoDoc,
+        created_at: pedido.created_at,
+        notas: pedido.notas,
+        subtotal: pedido.subtotal || pedido.total_pedido,
+        incluye_iva: pedido.incluye_iva ?? false,
+        monto_iva: pedido.monto_iva ?? 0,
+        total_pedido: pedido.total_pedido,
+        cliente: pedido.cliente,
+        detalles: lineasParaPdf,
+      },
+      tipoDoc
+    );
+    showToast(
+      tipoDoc === 'PRESUPUESTO'
+        ? `Descargando Presupuesto #${pedido.id} en PDF...`
+        : `Descargando Remito #${pedido.id} en PDF...`
+    );
+  };
+
+  const handleConvertirARemito = async (pedido: Pedido) => {
+    setConvertingId(pedido.id);
+    try {
+      const pedidoActualizado = await convertirPresupuestoARemito(pedido.id);
+      setPedidos((prev) =>
+        prev.map((p) => (String(p.id) === String(pedido.id) ? pedidoActualizado : p))
+      );
+      if (pedidoDetalleSeleccionado && String(pedidoDetalleSeleccionado.id) === String(pedido.id)) {
+        setPedidoDetalleSeleccionado(pedidoActualizado);
+      }
+      handleDescargarPDF(pedidoActualizado, 'REMITO');
+      showToast(
+        `Presupuesto #${pedido.id} convertido a Remito (COMPLETADO). Stock actualizado y PDF descargado.`
+      );
+    } catch (err: any) {
+      console.error('Error convirtiendo presupuesto a remito:', err);
+      showToast(err?.message || 'Error al convertir el presupuesto en remito.');
+    } finally {
+      setConvertingId(null);
+    }
   };
 
   // Filtrado reactivo
@@ -126,11 +166,12 @@ export default function PedidosPage() {
 
   // Métricas
   const totalOperaciones = pedidos.length;
+  const totalPresupuestos = pedidos.filter((p) => p.estado === 'PRESUPUESTO').length;
   const totalVentas = pedidos
-    .filter((p) => p.tipo === 'VENTA' && p.estado !== 'CANCELADO')
+    .filter((p) => p.tipo === 'VENTA' && p.estado === 'COMPLETADO')
     .reduce((acc, curr) => acc + curr.total_pedido, 0);
   const totalCompras = pedidos
-    .filter((p) => p.tipo === 'COMPRA' && p.estado !== 'CANCELADO')
+    .filter((p) => p.tipo === 'COMPRA' && p.estado === 'COMPLETADO')
     .reduce((acc, curr) => acc + curr.total_pedido, 0);
 
   const getTipoBadge = (tipo: TipoPedido) => {
@@ -143,9 +184,11 @@ export default function PedidosPage() {
   const getEstadoBadge = (estado: EstadoPedido) => {
     switch (estado) {
       case 'COMPLETADO':
-        return 'bg-slate-800 text-emerald-400 border-emerald-800/40';
+        return 'bg-emerald-950/70 text-emerald-400 border-emerald-700/50';
+      case 'PRESUPUESTO':
+        return 'bg-amber-950/70 text-amber-300 border-amber-600/60';
       case 'PENDIENTE':
-        return 'bg-slate-800 text-amber-400 border-amber-800/40';
+        return 'bg-slate-800 text-sky-300 border-sky-700/50';
       case 'CANCELADO':
       default:
         return 'bg-slate-800 text-red-400 border-red-800/40';
@@ -218,7 +261,9 @@ export default function PedidosPage() {
             <div className="text-2xl font-bold font-mono text-white tabular-nums">
               {totalOperaciones}
             </div>
-            <span className="text-[11px] text-slate-500">Pedidos registrados</span>
+            <span className="text-[11px] text-slate-500">
+              {totalPresupuestos} presupuestos pendientes de confirmar
+            </span>
           </div>
 
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
@@ -258,13 +303,13 @@ export default function PedidosPage() {
               />
             </div>
 
-            {/* Filtros de Tipo */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+            {/* Filtros de Tipo y Estado */}
+            <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center p-1 bg-slate-950 rounded-lg border border-slate-800">
                 <button
                   type="button"
                   onClick={() => setFiltroTipo('todos')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                  className={`px-3 py-1.5 min-h-[36px] text-xs font-semibold rounded-md transition-colors ${
                     filtroTipo === 'todos'
                       ? 'bg-blue-600 text-white'
                       : 'text-slate-400 hover:text-white'
@@ -275,24 +320,60 @@ export default function PedidosPage() {
                 <button
                   type="button"
                   onClick={() => setFiltroTipo('VENTA')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                  className={`px-3 py-1.5 min-h-[36px] text-xs font-semibold rounded-md transition-colors ${
                     filtroTipo === 'VENTA'
                       ? 'bg-blue-600 text-white'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Solo Ventas
+                  Ventas
                 </button>
                 <button
                   type="button"
                   onClick={() => setFiltroTipo('COMPRA')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                  className={`px-3 py-1.5 min-h-[36px] text-xs font-semibold rounded-md transition-colors ${
                     filtroTipo === 'COMPRA'
                       ? 'bg-emerald-600 text-white'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Solo Compras
+                  Compras
+                </button>
+              </div>
+
+              <div className="flex items-center p-1 bg-slate-950 rounded-lg border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setFiltroEstado('todos')}
+                  className={`px-2.5 py-1.5 min-h-[36px] text-xs font-semibold rounded-md transition-colors ${
+                    filtroEstado === 'todos'
+                      ? 'bg-slate-700 text-white'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Todos Estados
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroEstado('PRESUPUESTO')}
+                  className={`px-2.5 py-1.5 min-h-[36px] text-xs font-semibold rounded-md transition-colors ${
+                    filtroEstado === 'PRESUPUESTO'
+                      ? 'bg-amber-600 text-white'
+                      : 'text-slate-400 hover:text-amber-300'
+                  }`}
+                >
+                  Presupuestos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroEstado('COMPLETADO')}
+                  className={`px-2.5 py-1.5 min-h-[36px] text-xs font-semibold rounded-md transition-colors ${
+                    filtroEstado === 'COMPLETADO'
+                      ? 'bg-emerald-600 text-white'
+                      : 'text-slate-400 hover:text-emerald-300'
+                  }`}
+                >
+                  Completados
                 </button>
               </div>
             </div>
@@ -364,8 +445,11 @@ export default function PedidosPage() {
                         {/* 1. NÚMERO DE PEDIDO */}
                         <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 whitespace-nowrap">
                           <div className="flex flex-col">
-                            <span className="font-mono font-bold text-white text-xs">
-                              #{pedido.id}
+                            <span
+                              className="font-mono font-bold text-white text-xs"
+                              title={String(pedido.id)}
+                            >
+                              #{String(pedido.id).length > 12 ? String(pedido.id).slice(0, 8).toUpperCase() : pedido.id}
                             </span>
                             <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
@@ -428,13 +512,33 @@ export default function PedidosPage() {
                         </td>
 
                         {/* 7. ACCIONES */}
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <td className="py-2.5 px-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1.5">
+                            {pedido.estado === 'PRESUPUESTO' && (
+                              <button
+                                type="button"
+                                disabled={convertingId === pedido.id}
+                                onClick={() => handleConvertirARemito(pedido)}
+                                className="inline-flex items-center gap-1 min-h-[34px] px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-xs transition-colors border border-amber-500/50 disabled:opacity-50"
+                                title="Confirmar presupuesto, actualizar stock y emitir Remito"
+                              >
+                                {convertingId === pedido.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <FileCheck2 className="h-3.5 w-3.5" />
+                                )}
+                                <span>Convertir a Remito</span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleDescargarPDF(pedido)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white text-xs transition-colors border border-blue-500/40"
-                              title="Descargar Remito en PDF"
+                              className="inline-flex items-center gap-1 min-h-[34px] px-2.5 py-1 rounded bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white text-xs transition-colors border border-blue-500/40"
+                              title={
+                                pedido.estado === 'PRESUPUESTO'
+                                  ? 'Descargar Presupuesto en PDF'
+                                  : 'Descargar Remito en PDF'
+                              }
                             >
                               <FileDown className="h-3.5 w-3.5" />
                               <span>PDF</span>
@@ -442,7 +546,7 @@ export default function PedidosPage() {
                             <button
                               type="button"
                               onClick={() => setPedidoDetalleSeleccionado(pedido)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs transition-colors border border-slate-700"
+                              className="inline-flex items-center gap-1 min-h-[34px] px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs transition-colors border border-slate-700"
                               title="Ver detalle del pedido"
                             >
                               <Eye className="h-3.5 w-3.5" />
@@ -526,7 +630,15 @@ export default function PedidosPage() {
                 </div>
                 <div>
                   <span className="text-slate-500 block uppercase text-[10px]">Estado</span>
-                  <span className="font-bold text-emerald-400">{pedidoDetalleSeleccionado.estado}</span>
+                  <span
+                    className={`font-bold ${
+                      pedidoDetalleSeleccionado.estado === 'PRESUPUESTO'
+                        ? 'text-amber-300'
+                        : 'text-emerald-400'
+                    }`}
+                  >
+                    {pedidoDetalleSeleccionado.estado}
+                  </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block uppercase text-[10px]">Fecha</span>
@@ -552,13 +664,14 @@ export default function PedidosPage() {
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block mb-2">
                   Líneas de Perfiles de Aluminio
                 </span>
-                <div className="rounded-lg border border-slate-800 bg-slate-950 overflow-hidden">
+                <div className="rounded-lg border border-slate-800 bg-slate-950 overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400 font-mono">
                         <th className="py-2.5 px-3">CÓDIGO</th>
-                        <th className="py-2.5 px-3">DESCRIPCIÓN</th>
-                        <th className="py-2.5 px-3 text-center">CANTIDAD</th>
+                        <th className="py-2.5 px-3">DESCRIPCIÓN / LÍNEA</th>
+                        <th className="py-2.5 px-3 text-center">CANT.</th>
+                        <th className="py-2.5 px-3 text-right">PESO (KG)</th>
                         <th className="py-2.5 px-3 text-right">PRECIO UNIT.</th>
                         <th className="py-2.5 px-3 text-right">SUBTOTAL</th>
                       </tr>
@@ -566,19 +679,22 @@ export default function PedidosPage() {
                     <tbody className="divide-y divide-slate-800/60 font-sans">
                       {pedidoDetalleSeleccionado.detalles?.map((det, idx) => (
                         <tr key={det.id || idx} className="hover:bg-slate-900/50">
-                          <td className="py-2.5 px-3 font-mono font-bold text-blue-400">
-                            {det.producto?.codigo || `ID #${det.producto_id}`}
+                          <td className="py-2.5 px-3 font-mono font-bold text-blue-400 whitespace-nowrap">
+                            {det.producto?.codigo || (det.material ? 'COTIZ.' : `ID #${det.producto_id}`)}
                           </td>
                           <td className="py-2.5 px-3 text-slate-200">
-                            {det.producto?.descripcion || 'Perfil de catálogo'}
+                            {det.producto?.descripcion || det.material || 'Perfil de catálogo'}
                           </td>
-                          <td className="py-2.5 px-3 text-center font-mono font-bold text-white">
-                            {det.cantidad} u.
+                          <td className="py-2.5 px-3 text-center font-mono font-bold text-white whitespace-nowrap">
+                            {det.cantidad} {det.producto?.unidad_medida === 'KG' && !det.peso_kg ? 'kg' : 'u.'}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-300">
+                          <td className="py-2.5 px-3 text-right font-mono text-amber-300 whitespace-nowrap">
+                            {det.peso_kg ? `${Number(det.peso_kg).toFixed(2)} kg` : '—'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono text-slate-300 whitespace-nowrap">
                             $ {det.precio_unitario.toLocaleString('es-AR')}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-400">
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-400 whitespace-nowrap">
                             $ {det.subtotal.toLocaleString('es-AR')}
                           </td>
                         </tr>
@@ -615,19 +731,40 @@ export default function PedidosPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between p-4 border-t border-slate-800 bg-slate-950/60">
-              <button
-                type="button"
-                onClick={() => handleDescargarPDF(pedidoDetalleSeleccionado)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-xs font-bold text-white hover:bg-blue-500 shadow-md shadow-blue-900/30 transition-all"
-              >
-                <FileDown className="h-4 w-4" />
-                <span>Descargar Remito PDF</span>
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-t border-slate-800 bg-slate-950/60">
+              <div className="flex flex-wrap items-center gap-2">
+                {pedidoDetalleSeleccionado.estado === 'PRESUPUESTO' && (
+                  <button
+                    type="button"
+                    disabled={convertingId === pedidoDetalleSeleccionado.id}
+                    onClick={() => handleConvertirARemito(pedidoDetalleSeleccionado)}
+                    className="inline-flex items-center gap-2 min-h-[40px] px-4 py-2 rounded-lg bg-amber-500 text-xs font-bold text-slate-950 hover:bg-amber-400 shadow-md transition-all disabled:opacity-50"
+                  >
+                    {convertingId === pedidoDetalleSeleccionado.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileCheck2 className="h-4 w-4" />
+                    )}
+                    <span>Convertir a Remito</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleDescargarPDF(pedidoDetalleSeleccionado)}
+                  className="inline-flex items-center gap-2 min-h-[40px] px-4 py-2 rounded-lg bg-blue-600 text-xs font-bold text-white hover:bg-blue-500 shadow-md shadow-blue-900/30 transition-all"
+                >
+                  <FileDown className="h-4 w-4" />
+                  <span>
+                    {pedidoDetalleSeleccionado.estado === 'PRESUPUESTO'
+                      ? 'Descargar Presupuesto PDF'
+                      : 'Descargar Remito PDF'}
+                  </span>
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setPedidoDetalleSeleccionado(null)}
-                className="px-4 py-2 rounded-lg bg-slate-800 text-xs font-semibold text-slate-200 hover:bg-slate-700"
+                className="min-h-[40px] px-4 py-2 rounded-lg bg-slate-800 text-xs font-semibold text-slate-200 hover:bg-slate-700"
               >
                 Cerrar Detalle
               </button>
